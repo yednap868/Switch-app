@@ -1085,7 +1085,8 @@ const SwitchApp = () => {
       }).catch((networkError) => {
         // Network error (backend not reachable)
         console.error('Network error:', networkError);
-        throw new Error(`Backend server is not running. Please start it first.`);
+        const backendUrl = API_BASE || 'http://localhost:8000';
+        throw new Error(`Cannot connect to backend at ${backendUrl}. Check if backend is running and VITE_API_BASE_URL is set correctly.`);
       });
       
       if (!response.ok) {
