@@ -1,0 +1,36 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+body {
+  @apply bg-gray-50 text-gray-900;
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI',
+    sans-serif;
+}
+
+/* Force white background on unchecked checkboxes */
+input[type="checkbox"] {
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  appearance: none;
+  background-color: white !important;
+  border: 2px solid #d1d5db !important;
+}
+
+input[type="checkbox"]:checked {
+  background-color: #10b981 !important;
+  border-color: #10b981 !important;
+}
+
+/* Force white background on select dropdowns */
+select {
+  background-color: white !important;
+  color: #111827 !important;
+}
+
+select option {
+  background-color: white !important;
+  color: #111827 !important;
+}
+
+

@@ -1,0 +1,205 @@
+╔═══════════════════════════════════════════════════════════════╗
+║                                                               ║
+║         🚀 HOW TO RUN THE SWITCH APP - SIMPLE GUIDE 🚀       ║
+║                                                               ║
+╚═══════════════════════════════════════════════════════════════╝
+
+📦 YOU HAVE RECEIVED ALL PROJECT FILES!
+
+Files included:
+  ✅ package.json          (Dependencies)
+  ✅ vite.config.js        (Build config)
+  ✅ tailwind.config.js    (Styling)
+  ✅ postcss.config.js     (CSS processing)
+  ✅ index.html            (Entry point)
+  ✅ src/main.jsx          (React entry)
+  ✅ src/index.css         (Global styles)
+  ✅ src/App.jsx           (Main app - 2800+ lines!)
+  ✅ README.md             (Full documentation)
+  ✅ QUICKSTART.md         (Beginner guide)
+  ✅ setup.sh              (Auto-setup script)
+  ✅ .gitignore            (Git ignore rules)
+
+═══════════════════════════════════════════════════════════════
+
+📋 PREREQUISITES (Install These First):
+
+1. Node.js (v18 or higher)
+   Download: https://nodejs.org/
+   
+   After installing, verify:
+   $ node --version
+   $ npm --version
+
+═══════════════════════════════════════════════════════════════
+
+⚡ METHOD 1: EASIEST (3 Commands)
+
+Open Terminal/Command Prompt in the project folder, then:
+
+$ npm install
+$ npm run dev
+
+Done! Open: http://localhost:3000
+
+═══════════════════════════════════════════════════════════════
+
+⚡ METHOD 2: AUTO SETUP (Mac/Linux)
+
+$ chmod +x setup.sh
+$ ./setup.sh
+$ npm run dev
+
+═══════════════════════════════════════════════════════════════
+
+⚡ METHOD 3: STEP-BY-STEP
+
+1. Open Terminal/Command Prompt
+
+2. Navigate to project folder:
+   $ cd /path/to/switch-app
+   
+   Example (Windows):
+   $ cd C:\Users\YourName\Desktop\switch-app
+   
+   Example (Mac):
+   $ cd ~/Desktop/switch-app
+
+3. Install dependencies:
+   $ npm install
+   
+   (Wait 1-2 minutes while it downloads packages)
+
+4. Start the app:
+   $ npm run dev
+
+5. Open browser:
+   Go to: http://localhost:3000
+
+6. You should see the Switch app! 🎉
+
+═══════════════════════════════════════════════════════════════
+
+📱 TEST ON YOUR PHONE:
+
+1. Find your laptop's IP address:
+   
+   Windows:
+   $ ipconfig
+   (Look for "IPv4 Address")
+   
+   Mac/Linux:
+   $ ifconfig
+   (Look for "inet")
+
+2. Make sure phone and laptop are on SAME WiFi
+
+3. On your phone, open browser and go to:
+   http://YOUR_IP_ADDRESS:3000
+   
+   Example: http://192.168.1.5:3000
+
+4. Swipe the job cards on your phone! 📱
+
+═══════════════════════════════════════════════════════════════
+
+🎯 WHAT TO EXPECT:
+
+When you open the app, you'll see:
+
+1. Onboarding (3 screens) - Swipe through introduction
+2. Home screen - Job cards you can swipe
+3. Swipe RIGHT = Apply for job
+4. Swipe LEFT = Pass on job
+5. Bottom tabs to navigate between:
+   - Home (Browse jobs)
+   - Applied (Track applications)
+   - Profile (Edit your details)
+
+═══════════════════════════════════════════════════════════════
+
+✨ KEY FEATURES:
+
+✅ Swipe to apply (works on laptop and phone)
+✅ Upload profile photo (click camera icon)
+✅ Edit all profile fields (click any field)
+✅ Auto-save (changes persist even after refresh)
+✅ Referral system (earn ₹200 per hire)
+✅ Job tracking (Applied → Interview → Hired)
+✅ Notifications system
+✅ Success stories
+
+═══════════════════════════════════════════════════════════════
+
+🔧 COMMON ISSUES:
+
+Issue: "npm: command not found"
+Fix: Install Node.js from https://nodejs.org/
+
+Issue: "Cannot find package.json"
+Fix: Make sure you're in the correct folder
+
+Issue: Port 3000 already in use
+Fix: Change port in vite.config.js or kill other process
+
+Issue: Can't access on phone
+Fix: Check both devices on same WiFi, disable firewall
+
+═══════════════════════════════════════════════════════════════
+
+📚 MORE HELP:
+
+- Read QUICKSTART.md for absolute beginners
+- Read README.md for full documentation
+- Check browser console (F12) for errors
+
+═══════════════════════════════════════════════════════════════
+
+🎨 CUSTOMIZE:
+
+All code is in: src/App.jsx
+
+Want to change colors?
+- Search for "emerald" (primary color)
+- Search for "teal" (secondary color)
+- Replace with your brand colors
+
+Want to add Firebase?
+- Uncomment Firebase imports (line 15-18)
+- Add your Firebase config (line 5-11)
+- Run: npm install firebase
+
+═══════════════════════════════════════════════════════════════
+
+🚀 DEPLOY:
+
+For Vercel (easiest):
+$ npm install -g vercel
+$ vercel login
+$ vercel deploy
+
+For Netlify:
+$ npm run build
+$ # Upload 'dist' folder to netlify.com
+
+═══════════════════════════════════════════════════════════════
+
+🛑 STOP THE APP:
+
+Press Ctrl+C in terminal
+
+═══════════════════════════════════════════════════════════════
+
+🔄 RESTART:
+
+$ npm run dev
+
+═══════════════════════════════════════════════════════════════
+
+🎉 THAT'S IT! YOU'RE READY!
+
+Questions? Check README.md or QUICKSTART.md
+
+Happy coding! 💚
+
+═══════════════════════════════════════════════════════════════
