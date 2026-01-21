@@ -1085,8 +1085,10 @@ const SwitchApp = () => {
       }).catch((networkError) => {
         // Network error (backend not reachable)
         console.error('Network error:', networkError);
-        const backendUrl = API_BASE || 'http://localhost:8000';
-        throw new Error(`Cannot connect to backend at ${backendUrl}. Check if backend is running and VITE_API_BASE_URL is set correctly.`);
+        const backendUrl = API_BASE;
+        throw new Error(
+          `Cannot connect to backend at ${backendUrl}. Check if the relay backend is reachable and VITE_API_BASE_URL is set correctly.`
+        );
       });
       
       if (!response.ok) {
@@ -1193,27 +1195,27 @@ const SwitchApp = () => {
   // Show phone auth modal if not verified
   if (authStage !== 'verified' && (authStage === 'phone' || authStage === 'otp' || authStage === 'idle')) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-emerald-500 via-teal-500 to-cyan-500 flex items-center justify-center p-4">
-        <div className="max-w-md w-full bg-white rounded-3xl shadow-2xl overflow-hidden">
+      <div className="min-h-screen bg-gradient-to-br from-emerald-500 via-teal-500 to-cyan-500 flex items-center justify-center px-4 py-6 sm:py-8">
+        <div className="max-w-sm sm:max-w-md w-full bg-white rounded-3xl shadow-2xl overflow-hidden">
           {/* Header with gradient */}
-          <div className="bg-gradient-to-r from-emerald-500 to-teal-500 p-8 text-center">
-            <div className="text-5xl mb-3">🎯</div>
-            <h1 className="text-2xl font-bold text-white mb-1">Welcome to Switch</h1>
-            <p className="text-emerald-50 text-sm">Ghar ke paas job, 24 hours mein</p>
+          <div className="bg-gradient-to-r from-emerald-500 to-teal-500 p-6 sm:p-8 text-center">
+            <div className="text-4xl sm:text-5xl mb-3">🎯</div>
+            <h1 className="text-xl sm:text-2xl font-bold text-white mb-1">Welcome to Switch</h1>
+            <p className="text-emerald-50 text-xs sm:text-sm">Ghar ke paas job, 24 hours mein</p>
           </div>
 
-          <div className="p-8 space-y-6">
+          <div className="p-6 sm:p-8 space-y-6">
             {authStage === 'phone' && (
               <div className="space-y-5 animate-in fade-in slide-in-from-bottom-4 duration-300">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
                     Phone Number
                   </label>
-                  <div className="flex gap-2">
+                  <div className="flex flex-col sm:flex-row gap-3 sm:gap-2">
                     <select
                       value={authCountryCode}
                       onChange={(e) => setAuthCountryCode(e.target.value)}
-                      className="px-4 py-3.5 border-2 border-gray-200 rounded-xl focus:border-emerald-500 focus:ring-2 focus:ring-emerald-200 focus:outline-none transition-all bg-white font-medium"
+                      className="w-full sm:w-auto px-4 py-3.5 border-2 border-gray-200 rounded-xl focus:border-emerald-500 focus:ring-2 focus:ring-emerald-200 focus:outline-none transition-all bg-white font-medium"
                     >
                       <option value="91">🇮🇳 +91</option>
                       <option value="1">🇺🇸 +1</option>
@@ -1223,7 +1225,7 @@ const SwitchApp = () => {
                       value={authPhone}
                       onChange={(e) => setAuthPhone(e.target.value.replace(/\D/g, ''))}
                       placeholder="98765 43210"
-                      className="flex-1 px-4 py-3.5 border-2 border-gray-200 rounded-xl focus:border-emerald-500 focus:ring-2 focus:ring-emerald-200 focus:outline-none transition-all text-lg"
+                      className="flex-1 px-4 py-3.5 border-2 border-gray-200 rounded-xl focus:border-emerald-500 focus:ring-2 focus:ring-emerald-200 focus:outline-none transition-all text-base sm:text-lg"
                       maxLength={10}
                       autoFocus
                     />
@@ -1272,7 +1274,7 @@ const SwitchApp = () => {
                 
                 {/* OTP Input with individual boxes */}
                 <div className="space-y-3">
-                  <div className="flex gap-2 justify-center" id="otp-container">
+                  <div className="flex flex-wrap gap-2 justify-center" id="otp-container">
                     {[0, 1, 2, 3, 4, 5].map((idx) => (
                       <input
                         key={idx}
@@ -1282,25 +1284,49 @@ const SwitchApp = () => {
                         value={authOtp[idx] || ''}
                         onChange={(e) => {
                           const value = e.target.value.replace(/\D/g, '');
+                          const current = (authOtp || '').split('');
+                          
+                          // If user typed something, keep only the last digit typed
                           if (value) {
-                            const newOtp = authOtp.split('');
-                            newOtp[idx] = value;
-                            const updatedOtp = newOtp.join('').slice(0, 6);
+                            current[idx] = value[value.length - 1];
+                            const updatedOtp = current.join('').slice(0, 6);
                             setAuthOtp(updatedOtp);
-                            
+
                             // Auto-focus next input
-                            if (idx < 5 && value) {
+                            if (idx < 5) {
                               const container = document.getElementById('otp-container');
                               const nextInput = container?.children[idx + 1];
-                              if (nextInput) nextInput.focus();
+                              if (nextInput instanceof HTMLInputElement) {
+                                nextInput.focus();
+                                nextInput.select();
+                              }
                             }
+                          } else {
+                            // If user cleared this box, clear that digit from OTP
+                            current[idx] = '';
+                            setAuthOtp(current.join(''));
                           }
                         }}
                         onKeyDown={(e) => {
-                          if (e.key === 'Backspace' && !authOtp[idx] && idx > 0) {
-                            const container = document.getElementById('otp-container');
-                            const prevInput = container?.children[idx - 1];
-                            if (prevInput) prevInput.focus();
+                          if (e.key === 'Backspace') {
+                            e.preventDefault();
+                            const current = (authOtp || '').split('');
+
+                            if (current[idx]) {
+                              // If this box has a digit, clear it
+                              current[idx] = '';
+                              setAuthOtp(current.join(''));
+                            } else if (idx > 0) {
+                              // If this box is already empty, move to previous and clear it
+                              current[idx - 1] = '';
+                              setAuthOtp(current.join(''));
+                              const container = document.getElementById('otp-container');
+                              const prevInput = container?.children[idx - 1];
+                              if (prevInput instanceof HTMLInputElement) {
+                                prevInput.focus();
+                                prevInput.select();
+                              }
+                            }
                           }
                         }}
                         onPaste={(e) => {
@@ -1310,10 +1336,13 @@ const SwitchApp = () => {
                           if (pasted.length === 6) {
                             const container = document.getElementById('otp-container');
                             const lastInput = container?.children[5];
-                            if (lastInput) lastInput.focus();
+                            if (lastInput instanceof HTMLInputElement) {
+                              lastInput.focus();
+                              lastInput.select();
+                            }
                           }
                         }}
-                        className="w-12 h-14 text-center text-2xl font-bold border-2 border-gray-300 rounded-xl focus:border-emerald-500 focus:ring-2 focus:ring-emerald-200 focus:outline-none transition-all"
+                        className="w-10 h-12 sm:w-12 sm:h-14 text-center text-xl sm:text-2xl font-bold border-2 border-gray-300 rounded-xl focus:border-emerald-500 focus:ring-2 focus:ring-emerald-200 focus:outline-none transition-all"
                         autoFocus={idx === 0 && authStage === 'otp'}
                       />
                     ))}
