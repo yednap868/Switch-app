@@ -1925,7 +1925,14 @@ const SwitchApp = () => {
                       <button 
                         onClick={(e) => {
                           e.stopPropagation();
-                          setSelectedJob(job);
+                          // Try to find the full job details from the jobs array
+                          const fullJob = jobs.find(j => j.id === job.id) || job;
+                          // Merge applied job data with full job data
+                          const mergedJob = {
+                            ...fullJob,
+                            ...job, // Applied job data takes precedence (status, callScheduled, etc.)
+                          };
+                          setSelectedJob(mergedJob);
                           setShowJobDetail(true);
                         }}
                         className="flex-1 bg-emerald-50 text-emerald-700 py-2 px-3 rounded-lg text-sm font-semibold hover:bg-emerald-100 transition"
@@ -2311,96 +2318,126 @@ const SwitchApp = () => {
                 </div>
                 <div>
                   <h2 className="text-lg font-semibold">{selectedJob.company}</h2>
-                  <div className="flex items-center gap-2 text-emerald-100 text-sm">
-                    <Star className="w-4 h-4 fill-current" />
-                    {selectedJob.companyRating} rating
-                  </div>
+                  {selectedJob.companyRating && (
+                    <div className="flex items-center gap-2 text-emerald-100 text-sm">
+                      <Star className="w-4 h-4 fill-current" />
+                      {selectedJob.companyRating} rating
+                    </div>
+                  )}
                 </div>
               </div>
               <h3 className="text-2xl font-bold mb-2">{selectedJob.role}</h3>
-              <div className="flex items-baseline gap-1">
-                <IndianRupee className="w-5 h-5" />
-                <span className="text-3xl font-bold">{selectedJob.salary.split(' - ')[0].replace('₹', '')}</span>
-                <span className="text-lg">- {selectedJob.salary.split(' - ')[1]}</span>
-              </div>
+              {selectedJob.salary && (
+                <div className="flex items-baseline gap-1">
+                  <IndianRupee className="w-5 h-5" />
+                  {selectedJob.salary.includes(' - ') ? (
+                    <>
+                      <span className="text-3xl font-bold">{selectedJob.salary.split(' - ')[0].replace('₹', '')}</span>
+                      <span className="text-lg">- {selectedJob.salary.split(' - ')[1]}</span>
+                    </>
+                  ) : (
+                    <span className="text-3xl font-bold">{selectedJob.salary.replace('₹', '')}</span>
+                  )}
+                </div>
+              )}
             </div>
 
             <div className="p-6 space-y-6">
               {/* Stats */}
-              <div className="grid grid-cols-3 gap-3">
-                <div className="bg-emerald-50 rounded-xl p-3 text-center">
-                  <Clock className="w-5 h-5 text-emerald-600 mx-auto mb-1" />
-                  <div className="text-xs text-gray-600">Avg hiring</div>
-                  <div className="font-bold text-gray-900">{selectedJob.avgHiringTime}</div>
+              {(selectedJob.avgHiringTime || selectedJob.employeesHired || selectedJob.openings) && (
+                <div className="grid grid-cols-3 gap-3">
+                  {selectedJob.avgHiringTime && (
+                    <div className="bg-emerald-50 rounded-xl p-3 text-center">
+                      <Clock className="w-5 h-5 text-emerald-600 mx-auto mb-1" />
+                      <div className="text-xs text-gray-600">Avg hiring</div>
+                      <div className="font-bold text-gray-900">{selectedJob.avgHiringTime}</div>
+                    </div>
+                  )}
+                  {selectedJob.employeesHired && (
+                    <div className="bg-teal-50 rounded-xl p-3 text-center">
+                      <Users className="w-5 h-5 text-teal-600 mx-auto mb-1" />
+                      <div className="text-xs text-gray-600">Hired</div>
+                      <div className="font-bold text-gray-900">{selectedJob.employeesHired}+</div>
+                    </div>
+                  )}
+                  {selectedJob.openings && (
+                    <div className="bg-blue-50 rounded-xl p-3 text-center">
+                      <Target className="w-5 h-5 text-blue-600 mx-auto mb-1" />
+                      <div className="text-xs text-gray-600">Openings</div>
+                      <div className="font-bold text-gray-900">{selectedJob.openings}</div>
+                    </div>
+                  )}
                 </div>
-                <div className="bg-teal-50 rounded-xl p-3 text-center">
-                  <Users className="w-5 h-5 text-teal-600 mx-auto mb-1" />
-                  <div className="text-xs text-gray-600">Hired</div>
-                  <div className="font-bold text-gray-900">{selectedJob.employeesHired}+</div>
-                </div>
-                <div className="bg-blue-50 rounded-xl p-3 text-center">
-                  <Target className="w-5 h-5 text-blue-600 mx-auto mb-1" />
-                  <div className="text-xs text-gray-600">Openings</div>
-                  <div className="font-bold text-gray-900">{selectedJob.openings}</div>
-                </div>
-              </div>
+              )}
 
               {/* Description */}
-              <div>
-                <h4 className="font-bold text-gray-900 mb-2">About the Job</h4>
-                <p className="text-gray-600">{selectedJob.description}</p>
-              </div>
+              {selectedJob.description && (
+                <div>
+                  <h4 className="font-bold text-gray-900 mb-2">About the Job</h4>
+                  <p className="text-gray-600">{selectedJob.description}</p>
+                </div>
+              )}
 
               {/* Requirements */}
-              <div>
-                <h4 className="font-bold text-gray-900 mb-2">Requirements</h4>
-                <div className="space-y-2">
-                  {selectedJob.requirements.map((req, idx) => (
-                    <div key={idx} className="flex items-center gap-2">
-                      <CheckCircle className="w-4 h-4 text-emerald-600" />
-                      <span className="text-gray-600">{req}</span>
-                    </div>
-                  ))}
+              {selectedJob.requirements && Array.isArray(selectedJob.requirements) && selectedJob.requirements.length > 0 && (
+                <div>
+                  <h4 className="font-bold text-gray-900 mb-2">Requirements</h4>
+                  <div className="space-y-2">
+                    {selectedJob.requirements.map((req, idx) => (
+                      <div key={idx} className="flex items-center gap-2">
+                        <CheckCircle className="w-4 h-4 text-emerald-600" />
+                        <span className="text-gray-600">{req}</span>
+                      </div>
+                    ))}
+                  </div>
                 </div>
-              </div>
+              )}
 
               {/* Benefits */}
-              <div>
-                <h4 className="font-bold text-gray-900 mb-2">Benefits</h4>
-                <div className="space-y-2">
-                  {selectedJob.benefits.map((benefit, idx) => (
-                    <div key={idx} className="flex items-center gap-2">
-                      <Sparkles className="w-4 h-4 text-teal-600" />
-                      <span className="text-gray-600">{benefit}</span>
-                    </div>
-                  ))}
+              {selectedJob.benefits && Array.isArray(selectedJob.benefits) && selectedJob.benefits.length > 0 && (
+                <div>
+                  <h4 className="font-bold text-gray-900 mb-2">Benefits</h4>
+                  <div className="space-y-2">
+                    {selectedJob.benefits.map((benefit, idx) => (
+                      <div key={idx} className="flex items-center gap-2">
+                        <Sparkles className="w-4 h-4 text-teal-600" />
+                        <span className="text-gray-600">{benefit}</span>
+                      </div>
+                    ))}
+                  </div>
                 </div>
-              </div>
+              )}
 
               {/* Location */}
-              <div>
-                <h4 className="font-bold text-gray-900 mb-2">Location</h4>
-                <div className="bg-gray-50 rounded-xl p-4">
-                  <div className="flex items-start gap-3">
-                    <MapPin className="w-5 h-5 text-gray-600 flex-shrink-0 mt-0.5" />
-                    <div>
-                      <div className="font-semibold text-gray-900">{selectedJob.location}</div>
-                      <div className="text-sm text-emerald-600 mt-1">{selectedJob.distance} from you</div>
+              {selectedJob.location && (
+                <div>
+                  <h4 className="font-bold text-gray-900 mb-2">Location</h4>
+                  <div className="bg-gray-50 rounded-xl p-4">
+                    <div className="flex items-start gap-3">
+                      <MapPin className="w-5 h-5 text-gray-600 flex-shrink-0 mt-0.5" />
+                      <div>
+                        <div className="font-semibold text-gray-900">{selectedJob.location}</div>
+                        {selectedJob.distance && (
+                          <div className="text-sm text-emerald-600 mt-1">{selectedJob.distance} from you</div>
+                        )}
+                      </div>
                     </div>
                   </div>
                 </div>
-              </div>
+              )}
 
-              {/* Apply Button */}
-              <button
-                onClick={() => {
-                  handleSwipe('right');
-                  setShowJobDetail(false);
-                }}
-                className="w-full bg-gradient-to-br from-emerald-500 to-teal-600 text-white py-4 rounded-2xl font-bold text-lg shadow-lg hover:scale-105 active:scale-95 transition-transform"
-              >
-                Apply Now →
-              </button>
+              {/* Apply Button - Only show if not already applied */}
+              {!appliedJobs.some(job => job.id === selectedJob.id) && (
+                <button
+                  onClick={() => {
+                    handleSwipe('right');
+                    setShowJobDetail(false);
+                  }}
+                  className="w-full bg-gradient-to-br from-emerald-500 to-teal-600 text-white py-4 rounded-2xl font-bold text-lg shadow-lg hover:scale-105 active:scale-95 transition-transform"
+                >
+                  Apply Now →
+                </button>
+              )}
             </div>
           </div>
         </div>
