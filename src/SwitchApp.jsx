@@ -67,7 +67,11 @@ const SwitchApp = () => {
   ]);
   const [userId, setUserId] = useState(null);
   const [sessionToken, setSessionToken] = useState(null);
-  const [authStage, setAuthStage] = useState('idle'); // 'idle' | 'phone' | 'otp' | 'verified'
+  const [authStage, setAuthStage] = useState('idle'); // 'idle' | 'phone' | 'otp' | 'profile-setup' | 'verified'
+  const [profileSetupName, setProfileSetupName] = useState('');
+  const [profileSetupPhoto, setProfileSetupPhoto] = useState(null);
+  const [profileSetupRoles, setProfileSetupRoles] = useState([]);
+  const [profileSetupUploading, setProfileSetupUploading] = useState(false);
   const [authPhone, setAuthPhone] = useState('');
   const [authCountryCode, setAuthCountryCode] = useState('91');
   const [authOtp, setAuthOtp] = useState('');
@@ -1270,7 +1274,6 @@ const SwitchApp = () => {
 
       setUserId(backendUserId);
       setSessionToken(backendSessionToken);
-      setAuthStage('verified');
 
       // Format phone number properly: +91 98765 43210
       const phoneDigits = authPhone.trim();
@@ -1282,35 +1285,31 @@ const SwitchApp = () => {
       // Load profile from Switch API (will create if doesn't exist)
       const savedProfile = await loadProfileFromFirestore(backendUserId);
       
-      // Set profile immediately with formatted phone
-      setUserProfile((prev) => ({
-        ...prev,
-        ...(savedProfile || {}), // Load existing profile first
-        phone: prettyPhone, // Always use formatted phone from OTP
-        verified: true,
-        referralCode: savedProfile?.referralCode || referralCode,
-        // Preserve location if it exists in saved profile
-        location: savedProfile?.location || prev.location || '',
-        isAvailable: savedProfile?.isAvailable !== undefined ? savedProfile.isAvailable : true,
-      }));
-      // Set availability state
-      setIsAvailable(savedProfile?.isAvailable !== undefined ? savedProfile.isAvailable : true);
-
-      // Create/update profile in Switch API with all fields (ensures persistence)
-      const profileToSave = {
-        phone: prettyPhone,
-        verified: true,
-        referralCode: savedProfile?.referralCode || referralCode,
-        joinedDate: new Date().toLocaleDateString('en-US', { month: 'short', year: 'numeric' }),
-        name: savedProfile?.name || '',
-        location: savedProfile?.location || '',
-        experience: savedProfile?.experience || '',
-        education: savedProfile?.education || '',
-        preferredRoles: savedProfile?.preferredRoles || [],
-        languages: savedProfile?.languages || [],
-        photoURL: savedProfile?.photoURL || null,
-      };
-      await saveProfileToFirestore(backendUserId, profileToSave);
+      // Check if profile already has name and preferredRoles - if so, skip setup
+      if (savedProfile?.name && savedProfile?.preferredRoles && savedProfile.preferredRoles.length > 0) {
+        // Profile already set up, go directly to verified
+        setAuthStage('verified');
+        
+        // Set profile immediately with formatted phone
+        setUserProfile((prev) => ({
+          ...prev,
+          ...(savedProfile || {}), // Load existing profile first
+          phone: prettyPhone, // Always use formatted phone from OTP
+          verified: true,
+          referralCode: savedProfile?.referralCode || referralCode,
+          // Preserve location if it exists in saved profile
+          location: savedProfile?.location || prev.location || '',
+          isAvailable: savedProfile?.isAvailable !== undefined ? savedProfile.isAvailable : true,
+        }));
+        // Set availability state
+        setIsAvailable(savedProfile?.isAvailable !== undefined ? savedProfile.isAvailable : true);
+      } else {
+        // Profile not set up, go to profile setup
+        setAuthStage('profile-setup');
+        // Pre-fill name if exists
+        setProfileSetupName(savedProfile?.name || '');
+        setProfileSetupRoles(savedProfile?.preferredRoles || []);
+      }
 
       localStorage.setItem(
         'switch_session_v1',
@@ -1327,8 +1326,104 @@ const SwitchApp = () => {
     }
   };
 
+  const completeProfileSetup = async () => {
+    if (!profileSetupName.trim()) {
+      setAuthError('Please enter your name');
+      return;
+    }
+    
+    if (profileSetupRoles.length === 0) {
+      setAuthError('Please select at least one preferred role');
+      return;
+    }
+
+    try {
+      setAuthLoading(true);
+      setAuthError('');
+
+      // Format phone number properly
+      const phoneDigits = authPhone.trim();
+      const prettyPhone = `+${authCountryCode} ${phoneDigits.slice(0, 5)} ${phoneDigits.slice(5)}`;
+      
+      // Generate referral code
+      const referralCode = `SW${userId.slice(-6).toUpperCase()}`;
+      
+      let photoURL = null;
+      
+      // Upload photo if provided
+      if (profileSetupPhoto) {
+        setProfileSetupUploading(true);
+        try {
+          photoURL = await uploadPhotoToStorage(userId, profileSetupPhoto);
+        } catch (err) {
+          console.warn('Failed to upload photo during setup', err);
+          // Continue without photo if upload fails
+        } finally {
+          setProfileSetupUploading(false);
+        }
+      }
+
+      // Create profile with setup data
+      const profileToSave = {
+        phone: prettyPhone,
+        name: profileSetupName.trim(),
+        preferredRoles: profileSetupRoles,
+        photoURL: photoURL,
+        verified: true,
+        referralCode: referralCode,
+        joinedDate: new Date().toLocaleDateString('en-US', { month: 'short', year: 'numeric' }),
+        location: '',
+        experience: '',
+        education: '',
+        languages: [],
+        isAvailable: true,
+      };
+
+      // Save to backend
+      await saveProfileToFirestore(userId, profileToSave);
+
+      // Set profile state
+      setUserProfile(profileToSave);
+      setIsAvailable(true);
+
+      // Move to verified stage
+      setAuthStage('verified');
+    } catch (err) {
+      setAuthError(err.message || 'Failed to save profile');
+    } finally {
+      setAuthLoading(false);
+    }
+  };
+
+  const handleProfileSetupPhotoChange = (event) => {
+    const file = event.target.files[0];
+    if (!file) return;
+    
+    // Validate file
+    if (file.size > 5 * 1024 * 1024) {
+      setAuthError('Photo size should be less than 5MB');
+      return;
+    }
+    
+    if (!file.type.startsWith('image/')) {
+      setAuthError('Please upload an image file');
+      return;
+    }
+
+    setProfileSetupPhoto(file);
+    setAuthError('');
+  };
+
+  const toggleProfileSetupRole = (role) => {
+    setProfileSetupRoles(prev => 
+      prev.includes(role) 
+        ? prev.filter(r => r !== role)
+        : [...prev, role]
+    );
+  };
+
   // Show phone auth modal if not verified
-  if (authStage !== 'verified' && (authStage === 'phone' || authStage === 'otp' || authStage === 'idle')) {
+  if (authStage !== 'verified' && (authStage === 'phone' || authStage === 'otp' || authStage === 'idle' || authStage === 'profile-setup')) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-emerald-500 via-teal-500 to-cyan-500 flex items-center justify-center px-4 py-6 sm:py-8">
         <div className="max-w-sm sm:max-w-md w-full bg-white rounded-3xl shadow-2xl overflow-hidden">
@@ -1530,6 +1625,153 @@ const SwitchApp = () => {
                     Change number
                   </button>
                 </div>
+              </div>
+            )}
+
+            {authStage === 'profile-setup' && (
+              <div className="space-y-5 animate-in fade-in slide-in-from-bottom-4 duration-300">
+                <div className="text-center mb-2">
+                  <h2 className="text-xl font-bold text-gray-900 mb-1">Complete Your Profile</h2>
+                  <p className="text-sm text-gray-600">Help us find the perfect job for you</p>
+                </div>
+
+                {/* Name Input */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Your Name <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={profileSetupName}
+                    onChange={(e) => {
+                      setProfileSetupName(e.target.value);
+                      setAuthError('');
+                    }}
+                    placeholder="Enter your full name"
+                    className="w-full px-4 py-3.5 border-2 border-gray-200 rounded-xl focus:border-emerald-500 focus:ring-2 focus:ring-emerald-200 focus:outline-none transition-all bg-white"
+                  />
+                </div>
+
+                {/* Photo Upload */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Profile Photo <span className="text-gray-500 text-xs">(Optional)</span>
+                  </label>
+                  <div className="flex items-center gap-4">
+                    {profileSetupPhoto ? (
+                      <div className="relative">
+                        <img
+                          src={URL.createObjectURL(profileSetupPhoto)}
+                          alt="Profile preview"
+                          className="w-20 h-20 rounded-xl object-cover border-2 border-emerald-500"
+                        />
+                        <button
+                          onClick={() => setProfileSetupPhoto(null)}
+                          className="absolute -top-2 -right-2 w-6 h-6 bg-red-500 text-white rounded-full flex items-center justify-center text-xs hover:bg-red-600"
+                        >
+                          ×
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="w-20 h-20 bg-gray-100 rounded-xl flex items-center justify-center border-2 border-dashed border-gray-300">
+                        <Camera className="w-8 h-8 text-gray-400" />
+                      </div>
+                    )}
+                    <label className="flex-1">
+                      <input
+                        type="file"
+                        accept="image/*"
+                        onChange={handleProfileSetupPhotoChange}
+                        className="hidden"
+                      />
+                      <div className="px-4 py-2.5 bg-gray-50 border-2 border-gray-200 rounded-xl text-sm font-medium text-gray-700 hover:bg-gray-100 cursor-pointer transition-all text-center">
+                        {profileSetupPhoto ? 'Change Photo' : 'Upload Photo'}
+                      </div>
+                    </label>
+                  </div>
+                </div>
+
+                {/* Preferred Roles */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Preferred Roles <span className="text-red-500">*</span>
+                  </label>
+                  <p className="text-xs text-gray-500 mb-3">Select at least one role you're interested in</p>
+                  <div className="max-h-48 overflow-y-auto border-2 border-gray-200 rounded-xl p-3 space-y-2 bg-white">
+                    {[
+                      'Delivery Partner',
+                      'Delivery Executive',
+                      'Warehouse Worker',
+                      'Picker/Packer',
+                      'Security Guard',
+                      'Store Assistant',
+                      'Retail Associate',
+                      'Waiter/Server',
+                      'Receptionist',
+                      'Driver',
+                      'Cook/Chef',
+                      'Housekeeping',
+                      'Sales Executive',
+                      'Customer Service',
+                      'Data Entry',
+                      'Packing/Assembly',
+                      'Loading/Unloading',
+                      'Cashier',
+                      'Supervisor',
+                      'Helper',
+                      'Cleaner',
+                      'Watchman',
+                      'Gardener',
+                      'Electrician',
+                      'Plumber',
+                      'Carpenter',
+                      'Painter',
+                      'Mason',
+                      'Welder',
+                    ].map((role) => (
+                      <label
+                        key={role}
+                        className="flex items-center gap-2 p-2 hover:bg-gray-50 rounded-lg cursor-pointer"
+                      >
+                        <input
+                          type="checkbox"
+                          checked={profileSetupRoles.includes(role)}
+                          onChange={() => toggleProfileSetupRole(role)}
+                          className="w-4 h-4 text-emerald-600 border-gray-300 rounded focus:ring-emerald-500 bg-white"
+                          style={{ backgroundColor: profileSetupRoles.includes(role) ? '#10b981' : '#ffffff' }}
+                        />
+                        <span className="text-sm text-gray-700">{role}</span>
+                      </label>
+                    ))}
+                  </div>
+                  {profileSetupRoles.length > 0 && (
+                    <p className="text-xs text-emerald-600 mt-2">
+                      {profileSetupRoles.length} role{profileSetupRoles.length > 1 ? 's' : ''} selected
+                    </p>
+                  )}
+                </div>
+
+                {authError && (
+                  <div className="bg-red-50 border-l-4 border-red-500 text-red-700 px-4 py-3 rounded-lg text-sm flex items-start gap-2 animate-in slide-in-from-top-2">
+                    <X className="w-4 h-4 mt-0.5 flex-shrink-0" />
+                    <span>{authError}</span>
+                  </div>
+                )}
+
+                <button
+                  onClick={completeProfileSetup}
+                  disabled={authLoading || profileSetupUploading || !profileSetupName.trim() || profileSetupRoles.length === 0}
+                  className="w-full bg-gradient-to-r from-emerald-500 to-teal-500 text-white py-4 rounded-xl font-bold text-lg shadow-lg hover:from-emerald-600 hover:to-teal-600 disabled:opacity-50 disabled:cursor-not-allowed transition-all transform hover:scale-[1.02] active:scale-[0.98]"
+                >
+                  {authLoading || profileSetupUploading ? (
+                    <span className="flex items-center justify-center gap-2">
+                      <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                      {profileSetupUploading ? 'Uploading photo...' : 'Saving profile...'}
+                    </span>
+                  ) : (
+                    'Complete Setup & Continue'
+                  )}
+                </button>
               </div>
             )}
           </div>
