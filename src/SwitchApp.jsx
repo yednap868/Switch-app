@@ -1,7 +1,18 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Phone, MapPin, Wallet, Clock, Users, Briefcase, ArrowRight, X, Heart, Building2, IndianRupee, Home, Star, ChevronLeft, Menu, User, Edit, CheckCircle, TrendingUp, Award, Calendar, LogOut, HelpCircle, Share2, Copy, Check, Sparkles, MessageCircle, Video, Send, Gift, Zap, Target, Camera, Save, Upload, ToggleLeft, ToggleRight } from 'lucide-react';
+import posthog from 'posthog-js';
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL || 'https://api.relayy.world';
+
+// Initialize PostHog
+if (typeof window !== 'undefined') {
+  posthog.init('phc_Aj6Pdk78nznYGy1SPOMiIG7DfuyyP1GXQI7X2w6sAhL', {
+    api_host: 'https://us.i.posthog.com',
+    loaded: (posthog) => {
+      if (process.env.NODE_ENV === 'development') console.log('PostHog loaded');
+    }
+  });
+}
 
 // Firebase Configuration
 const firebaseConfig = {
@@ -47,24 +58,9 @@ const SwitchApp = () => {
   const [appliedJobs, setAppliedJobs] = useState([]);
   const [interviewJobs, setInterviewJobs] = useState([]);
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
-  const [hiredJobs, setHiredJobs] = useState([
-    {
-      id: 99,
-      company: "Swiggy",
-      logo: "🛵",
-      role: "Delivery Partner",
-      salary: "₹52,000",
-      hiredDate: "Jan 10, 2026",
-      startDate: "Jan 12, 2026",
-      timeTaken: "18 hours"
-    }
-  ]);
-  const [referralEarnings, setReferralEarnings] = useState(300);
-  const [referredFriends, setReferredFriends] = useState([
-    { name: "Amit", status: "Applied", earnings: 0 },
-    { name: "Suresh", status: "Hired", earnings: 200 },
-    { name: "Priya", status: "Hired", earnings: 100 }
-  ]);
+  const [hiredJobs, setHiredJobs] = useState([]);
+  const [referralEarnings, setReferralEarnings] = useState(0);
+  const [referredFriends, setReferredFriends] = useState([]);
   const [userId, setUserId] = useState(null);
   const [sessionToken, setSessionToken] = useState(null);
   const [authStage, setAuthStage] = useState('idle'); // 'idle' | 'phone' | 'otp' | 'profile-setup' | 'verified'
@@ -72,6 +68,7 @@ const SwitchApp = () => {
   const [profileSetupPhoto, setProfileSetupPhoto] = useState(null);
   const [profileSetupRoles, setProfileSetupRoles] = useState([]);
   const [profileSetupUploading, setProfileSetupUploading] = useState(false);
+  const [profileSetupReferralCode, setProfileSetupReferralCode] = useState('');
   const [authPhone, setAuthPhone] = useState('');
   const [authCountryCode, setAuthCountryCode] = useState('91');
   const [authOtp, setAuthOtp] = useState('');
@@ -79,53 +76,31 @@ const SwitchApp = () => {
   const [authError, setAuthError] = useState('');
   
   const [userProfile, setUserProfile] = useState({
-    phone: "+91 98765 43210", // Primary identifier
-    name: "Rajesh Singh",
+    phone: "",
+    name: "",
     photoURL: null,
-    location: "Sector 46, Gurgaon",
-    experience: "2 years",
+    location: "",
+    experience: "",
     preferredRoles: [],
-    languages: ["Hindi", "English"],
-    education: "12th Pass",
-    verified: true,
-    joinedDate: "Jan 2026",
-    totalApplied: 12,
-    interviews: 3,
-    hired: 1,
-    profileComplete: 85,
-    referralCode: "RAJESH2026",
-    isAvailable: true // For employers to see if candidate is available
+    languages: [],
+    education: "",
+    verified: false,
+    joinedDate: "",
+    totalApplied: 0,
+    interviews: 0,
+    hired: 0,
+    profileComplete: 0,
+    referralCode: "",
+    isAvailable: true,
+    referrals: [],
+    totalReferralEarnings: 0,
+    totalReferrals: 0,
+    referredBy: null,
   });
 
   const [tempEditValue, setTempEditValue] = useState('');
 
-  const [notifications, setNotifications] = useState([
-    {
-      id: 1,
-      type: "interview",
-      title: "Interview Scheduled!",
-      message: "D-Mart wants to interview you tomorrow at 2 PM",
-      time: "5 mins ago",
-      read: false,
-      action: "View Details"
-    },
-    {
-      id: 2,
-      type: "success",
-      title: "Application Viewed",
-      message: "Amazon Warehouse viewed your profile",
-      time: "1 hour ago",
-      read: false
-    },
-    {
-      id: 3,
-      type: "earnings",
-      title: "You earned ₹100!",
-      message: "Your friend Suresh got hired through your referral",
-      time: "2 hours ago",
-      read: true
-    }
-  ]);
+  const [notifications, setNotifications] = useState([]);
 
   // Mock job data - focused on Gurgaon non-tech roles with real depth
   const jobs = [
@@ -402,7 +377,28 @@ const SwitchApp = () => {
               profileComplete: p.profileComplete || 0,
               referralCode: p.referralCode || '',
               isAvailable: p.isAvailable !== undefined ? p.isAvailable : true,
+              referrals: p.referrals || [], // List of people they referred
+              totalReferralEarnings: p.totalReferralEarnings || 0, // Total earnings
+              totalReferrals: p.totalReferrals || 0, // Total count
+              referredBy: p.referredBy || null, // Who referred them
             };
+            
+            // Update referral earnings and friends list from profile data
+            const referralEarningsValue = p.totalReferralEarnings || 0;
+            const referralsList = (p.referrals || []).map(ref => ({
+              name: ref.name || 'Unknown',
+              status: ref.status === 'hired' ? 'Hired' : ref.status === 'applied' ? 'Applied' : ref.status === 'signed_up' ? 'Signed Up' : 'Signed Up',
+              earnings: ref.earnings || 0,
+            }));
+            
+            setReferralEarnings(referralEarningsValue);
+            setReferredFriends(referralsList);
+            
+            // Also update userProfile with referral data
+            loadedProfile.referrals = p.referrals || [];
+            loadedProfile.totalReferralEarnings = referralEarningsValue;
+            loadedProfile.totalReferrals = p.totalReferrals || 0;
+            loadedProfile.referredBy = p.referredBy || null;
             console.log('✅ Profile loaded from Firebase:', loadedProfile);
             return loadedProfile;
           }
@@ -606,9 +602,23 @@ const SwitchApp = () => {
                   ...savedProfile,
                   phone: sessionPhone, // Always preserve formatted phone from session
                   location: savedProfile.location || prev.location || '', // Preserve location
+                  // Ensure referral data comes from Firebase, not cache
+                  referrals: savedProfile.referrals || [],
+                  totalReferralEarnings: savedProfile.totalReferralEarnings || 0,
+                  totalReferrals: savedProfile.totalReferrals || 0,
+                  referredBy: savedProfile.referredBy || null,
                 }));
                 // Update availability state
                 setIsAvailable(savedProfile.isAvailable !== undefined ? savedProfile.isAvailable : true);
+                
+                // Update referral earnings and friends list from Firebase data
+                setReferralEarnings(savedProfile.totalReferralEarnings || 0);
+                setReferredFriends((savedProfile.referrals || []).map(ref => ({
+                  name: ref.name || 'Unknown',
+                  status: ref.status === 'hired' ? 'Hired' : ref.status === 'applied' ? 'Applied' : ref.status === 'signed_up' ? 'Signed Up' : 'Signed Up',
+                  earnings: ref.earnings || 0,
+                })));
+                
                 console.log('✅ Profile synced from Firebase');
               }
             }).catch(err => {
@@ -647,7 +657,20 @@ const SwitchApp = () => {
             ...profile,
             phone: profile.phone || prev.phone, // Preserve phone if exists
             location: profile.location || prev.location || '', // Preserve location if exists
+            // Ensure referral data is included
+            referrals: profile.referrals || [],
+            totalReferralEarnings: profile.totalReferralEarnings || 0,
+            totalReferrals: profile.totalReferrals || 0,
+            referredBy: profile.referredBy || null,
           }));
+          
+          // Update referral earnings and friends list
+          setReferralEarnings(profile.totalReferralEarnings || 0);
+          setReferredFriends((profile.referrals || []).map(ref => ({
+            name: ref.name || 'Unknown',
+            status: ref.status === 'hired' ? 'Hired' : ref.status === 'applied' ? 'Applied' : ref.status === 'signed_up' ? 'Signed Up' : 'Signed Up',
+            earnings: ref.earnings || 0,
+          })));
         }
       });
       // Reload applications
@@ -655,6 +678,40 @@ const SwitchApp = () => {
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [userId, authStage]);
+
+  // Track tab navigation
+  useEffect(() => {
+    if (activeTab && userId) {
+      posthog.capture('tab_navigated', {
+        tab: activeTab,
+        user_id: userId,
+      });
+    }
+  }, [activeTab, userId]);
+
+  // Track job detail view
+  useEffect(() => {
+    if (showJobDetail && selectedJob && userId) {
+      posthog.capture('job_detail_viewed', {
+        user_id: userId,
+        job_id: selectedJob.id,
+        job_role: selectedJob.role,
+        job_company: selectedJob.company,
+      });
+    }
+  }, [showJobDetail, selectedJob, userId]);
+
+  // Track referral modal open
+  useEffect(() => {
+    if (showReferral && userId) {
+      posthog.capture('referral_modal_opened', {
+        user_id: userId,
+        referral_code: userProfile.referralCode,
+        total_referrals: userProfile.totalReferrals || 0,
+        total_earnings: userProfile.totalReferralEarnings || 0,
+      });
+    }
+  }, [showReferral, userId, userProfile.referralCode, userProfile.totalReferrals, userProfile.totalReferralEarnings]);
 
   // Auto-save profile whenever it changes (debounced)
   useEffect(() => {
@@ -703,8 +760,18 @@ const SwitchApp = () => {
       setUserProfile(updatedProfile);
       // Save to backend (includes phone number)
       await saveProfileToFirestore(userId, updatedProfile);
+      
+      // Track photo upload
+      posthog.capture('photo_uploaded', {
+        user_id: userId,
+        file_size: file.size,
+        file_type: file.type,
+      });
     } else {
       alert('Failed to upload photo. Please try again.');
+      posthog.capture('photo_upload_failed', {
+        user_id: userId,
+      });
     }
   };
 
@@ -985,6 +1052,16 @@ const SwitchApp = () => {
     // Set swipe direction for CSS animation
     setSwipeDirection(direction);
     
+    // Track swipe action
+    const currentJob = jobs[currentCard];
+    posthog.capture('job_swiped', {
+      direction: direction,
+      job_id: currentJob?.id,
+      job_role: currentJob?.role,
+      job_company: currentJob?.company,
+      card_index: currentCard,
+    });
+    
     if (direction === 'right') {
       const jobToApply = jobs[currentCard];
       const newApplication = {
@@ -1022,6 +1099,17 @@ const SwitchApp = () => {
           }),
         }).then(async () => {
           console.log('✅ Application saved to Switch API');
+          
+          // Track job application
+          posthog.capture('job_applied', {
+            user_id: userId,
+            job_id: String(jobToApply.id),
+            job_role: jobToApply.role,
+            job_company: jobToApply.company,
+            job_salary: jobToApply.salary,
+            total_applications: appliedJobs.length + 1,
+          });
+          
           // Reload applications to get server state
           await loadApplicationsFromAPI();
           // Reload profile to get updated stats (totalApplied count)
@@ -1076,6 +1164,14 @@ const SwitchApp = () => {
           }),
         });
         console.log('✅ Call schedule saved to Switch API');
+        
+        // Track call scheduling
+        posthog.capture('call_scheduled', {
+          user_id: userId,
+          job_id: selectedJob.id,
+          job_role: selectedJob.role,
+          call_time: time,
+        });
         
         // Reload profile to get updated stats (interviews count)
         const updatedProfile = await loadProfileFromFirestore(userId);
@@ -1135,6 +1231,14 @@ const SwitchApp = () => {
       });
       console.log('✅ Application cancelled in Switch API');
       
+      // Track application cancellation
+      posthog.capture('application_cancelled', {
+        user_id: userId,
+        job_id: jobToCancel.id,
+        job_role: jobToCancel.role,
+        job_company: jobToCancel.company,
+      });
+      
       // Reload applications to get server state
       await loadApplicationsFromAPI();
       
@@ -1154,10 +1258,23 @@ const SwitchApp = () => {
     navigator.clipboard.writeText(`Join Switch! Use my code: ${userProfile.referralCode}\nGet job in 24 hours: switchlocally.com/r/${userProfile.referralCode}`);
     setCopiedReferral(true);
     setTimeout(() => setCopiedReferral(false), 2000);
+    
+    // Track referral code copy
+    posthog.capture('referral_code_copied', {
+      user_id: userId,
+      referral_code: userProfile.referralCode,
+    });
   };
 
   const shareReferral = () => {
     const shareText = `Hey! मैंने Switch app से सिर्फ 18 घंटे में job पाई! तुम भी try करो!\n\nMy referral code: ${userProfile.referralCode}\n\nDownload: switchlocally.com\n\n₹100 bonus मिलेगा! 🎉`;
+    
+    // Track referral share
+    posthog.capture('referral_shared', {
+      user_id: userId,
+      referral_code: userProfile.referralCode,
+      method: navigator.share ? 'native_share' : 'copy',
+    });
     
     if (navigator.share) {
       navigator.share({
@@ -1214,6 +1331,12 @@ const SwitchApp = () => {
       }
       setAuthLoading(true);
       
+      // Track OTP request
+      posthog.capture('otp_requested', {
+        phone: authPhone.trim(),
+        country_code: authCountryCode,
+      });
+      
       const response = await fetch(`${API_BASE}/api/candidate-onboarding/signup`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -1255,6 +1378,12 @@ const SwitchApp = () => {
         return;
       }
       setAuthLoading(true);
+      
+      // Track OTP verification attempt
+      posthog.capture('otp_verification_attempted', {
+        phone: authPhone.trim(),
+      });
+      
       const res = await fetch(`${API_BASE}/api/candidate-onboarding/verify-otp`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -1274,6 +1403,19 @@ const SwitchApp = () => {
 
       setUserId(backendUserId);
       setSessionToken(backendSessionToken);
+
+      // Identify user in PostHog
+      posthog.identify(backendUserId, {
+        phone: authPhone.trim(),
+        country_code: authCountryCode,
+      });
+      
+      // Track successful OTP verification
+      posthog.capture('otp_verified', {
+        user_id: backendUserId,
+        phone: authPhone.trim(),
+        has_existing_profile: !!(savedProfile?.name && savedProfile?.preferredRoles && savedProfile.preferredRoles.length > 0),
+      });
 
       // Format phone number properly: +91 98765 43210
       const phoneDigits = authPhone.trim();
@@ -1309,6 +1451,11 @@ const SwitchApp = () => {
         // Pre-fill name if exists
         setProfileSetupName(savedProfile?.name || '');
         setProfileSetupRoles(savedProfile?.preferredRoles || []);
+        
+        // Track profile setup started
+        posthog.capture('profile_setup_started', {
+          user_id: backendUserId,
+        });
       }
 
       localStorage.setItem(
@@ -1371,6 +1518,7 @@ const SwitchApp = () => {
         photoURL: photoURL,
         verified: true,
         referralCode: referralCode,
+        referredBy: profileSetupReferralCode.trim() || null, // Track who referred them
         joinedDate: new Date().toLocaleDateString('en-US', { month: 'short', year: 'numeric' }),
         location: '',
         experience: '',
@@ -1382,14 +1530,81 @@ const SwitchApp = () => {
       // Save to backend
       await saveProfileToFirestore(userId, profileToSave);
 
+      // Track referral if code was provided (non-blocking)
+      if (profileSetupReferralCode.trim()) {
+        // Track referral code entry
+        posthog.capture('referral_code_entered', {
+          user_id: userId,
+          referral_code: profileSetupReferralCode.trim().toUpperCase(),
+        });
+        
+        fetch(`${API_BASE}/api/switch/track-referral`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            referrer_code: profileSetupReferralCode.trim().toUpperCase(),
+            referee_user_id: userId,
+            referee_name: profileSetupName.trim(),
+          }),
+        })
+        .then(async (res) => {
+          const data = await res.json().catch(() => ({}));
+          if (res.ok) {
+            console.log('✅ Referral tracked:', data.message);
+            posthog.capture('referral_tracked_successfully', {
+              user_id: userId,
+              referral_code: profileSetupReferralCode.trim().toUpperCase(),
+            });
+          } else {
+            console.warn('⚠️ Referral tracking failed:', data.message || 'Invalid referral code');
+            posthog.capture('referral_tracking_failed', {
+              user_id: userId,
+              referral_code: profileSetupReferralCode.trim().toUpperCase(),
+              error: data.message || 'Invalid referral code',
+            });
+            // Don't show error to user - signup should still succeed
+          }
+        })
+        .catch((err) => {
+          console.warn('Failed to track referral', err);
+          posthog.capture('referral_tracking_error', {
+            user_id: userId,
+            referral_code: profileSetupReferralCode.trim().toUpperCase(),
+            error: err.message,
+          });
+          // Don't block signup if referral tracking fails
+        });
+      }
+
       // Set profile state
       setUserProfile(profileToSave);
       setIsAvailable(true);
 
       // Move to verified stage
       setAuthStage('verified');
+      
+      // Track profile setup completion
+      posthog.capture('profile_setup_completed', {
+        user_id: userId,
+        has_photo: !!photoURL,
+        preferred_roles_count: profileSetupRoles.length,
+        has_referral_code: !!profileSetupReferralCode.trim(),
+        referral_code: profileSetupReferralCode.trim() || null,
+      });
+      
+      // Update user properties
+      posthog.setPersonProperties({
+        name: profileSetupName.trim(),
+        preferred_roles: profileSetupRoles,
+        has_photo: !!photoURL,
+        referred_by: profileSetupReferralCode.trim() || null,
+      });
     } catch (err) {
       setAuthError(err.message || 'Failed to save profile');
+      posthog.capture('profile_setup_failed', {
+        user_id: userId,
+        error: err.message,
+      });
     } finally {
       setAuthLoading(false);
     }
@@ -1751,6 +1966,25 @@ const SwitchApp = () => {
                   )}
                 </div>
 
+                {/* Referral Code */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Referral Code <span className="text-gray-500 text-xs">(Optional)</span>
+                  </label>
+                  <p className="text-xs text-gray-500 mb-2">Have a referral code? Enter it here to support your friend!</p>
+                  <input
+                    type="text"
+                    value={profileSetupReferralCode}
+                    onChange={(e) => {
+                      setProfileSetupReferralCode(e.target.value.toUpperCase().trim());
+                      setAuthError('');
+                    }}
+                    placeholder="Enter referral code (e.g., SW123456)"
+                    className="w-full px-4 py-3.5 border-2 border-gray-200 rounded-xl focus:border-emerald-500 focus:ring-2 focus:ring-emerald-200 focus:outline-none transition-all bg-white uppercase"
+                    maxLength={20}
+                  />
+                </div>
+
                 {authError && (
                   <div className="bg-red-50 border-l-4 border-red-500 text-red-700 px-4 py-3 rounded-lg text-sm flex items-start gap-2 animate-in slide-in-from-top-2">
                     <X className="w-4 h-4 mt-0.5 flex-shrink-0" />
@@ -1824,8 +2058,15 @@ const SwitchApp = () => {
                     onClick={() => {
                       if (onboardingStep < onboardingScreens.length - 1) {
                         setOnboardingStep(onboardingStep + 1);
+                        posthog.capture('onboarding_step_completed', {
+                          step: onboardingStep + 1,
+                          total_steps: onboardingScreens.length,
+                        });
                       } else {
                         setActiveTab('home');
+                        posthog.capture('onboarding_completed', {
+                          user_id: userId,
+                        });
                       }
                     }}
                     className="w-full bg-gradient-to-r from-emerald-500 to-teal-500 text-white py-4 rounded-xl font-bold text-lg shadow-lg hover:from-emerald-600 hover:to-teal-600 transition-all transform hover:scale-[1.02] active:scale-[0.98]"
@@ -1874,6 +2115,12 @@ const SwitchApp = () => {
                 onClick={async () => {
                   const newAvailability = !isAvailable;
                   setIsAvailable(newAvailability);
+                  
+                  // Track availability toggle
+                  posthog.capture('availability_toggled', {
+                    user_id: userId,
+                    is_available: newAvailability,
+                  });
                   
                   // Update in user profile
                   const updatedProfile = {
@@ -2434,6 +2681,12 @@ const SwitchApp = () => {
 
               <button 
                 onClick={() => {
+                  // Track logout
+                  posthog.capture('user_logged_out', {
+                    user_id: userId,
+                  });
+                  posthog.reset(); // Reset PostHog session
+                  
                   // Clear session
                   localStorage.removeItem('switch_session_v1');
                   
@@ -2770,28 +3023,36 @@ const SwitchApp = () => {
               {/* Referred friends */}
               <div>
                 <h3 className="font-bold text-gray-900 mb-3">Your Referrals ({referredFriends.length})</h3>
-                <div className="space-y-2">
-                  {referredFriends.map((friend, idx) => (
-                    <div key={idx} className="bg-white border border-gray-200 rounded-xl p-4 flex items-center justify-between">
-                      <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 bg-gradient-to-br from-emerald-500 to-teal-600 rounded-full flex items-center justify-center text-white font-bold">
-                          {friend.name[0]}
-                        </div>
-                        <div>
-                          <div className="font-semibold text-gray-900">{friend.name}</div>
-                          <div className={`text-sm ${
-                            friend.status === 'Hired' ? 'text-emerald-600' : 'text-gray-500'
-                          }`}>
-                            {friend.status}
+                {referredFriends.length === 0 ? (
+                  <div className="text-center py-8 bg-gray-50 rounded-xl">
+                    <Users className="w-12 h-12 text-gray-400 mx-auto mb-2" />
+                    <p className="text-gray-600 text-sm">No referrals yet</p>
+                    <p className="text-gray-500 text-xs mt-1">Share your code to start earning!</p>
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    {referredFriends.map((friend, idx) => (
+                      <div key={idx} className="bg-white border border-gray-200 rounded-xl p-4 flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                          <div className="w-10 h-10 bg-gradient-to-br from-emerald-500 to-teal-600 rounded-full flex items-center justify-center text-white font-bold">
+                            {friend.name[0]}
+                          </div>
+                          <div>
+                            <div className="font-semibold text-gray-900">{friend.name}</div>
+                            <div className={`text-sm ${
+                              friend.status === 'Hired' ? 'text-emerald-600' : 'text-gray-500'
+                            }`}>
+                              {friend.status}
+                            </div>
                           </div>
                         </div>
+                        {friend.earnings > 0 && (
+                          <div className="font-bold text-emerald-600">+₹{friend.earnings}</div>
+                        )}
                       </div>
-                      {friend.earnings > 0 && (
-                        <div className="font-bold text-emerald-600">+₹{friend.earnings}</div>
-                      )}
-                    </div>
-                  ))}
-                </div>
+                    ))}
+                  </div>
+                )}
               </div>
             </div>
           </div>
