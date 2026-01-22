@@ -445,6 +445,63 @@ const SwitchApp = () => {
     }
   };
 
+  // Helper: compress image on client so it safely fits in Firestore when base64-encoded
+  const compressImageFile = (file, maxWidth = 800, maxHeight = 800, quality = 0.7) => {
+    return new Promise((resolve, reject) => {
+      try {
+        const reader = new FileReader();
+        reader.onload = (e) => {
+          const img = new Image();
+          img.onload = () => {
+            try {
+              const canvas = document.createElement('canvas');
+              let { width, height } = img;
+
+              const ratio = Math.min(maxWidth / width, maxHeight / height, 1);
+              width = width * ratio;
+              height = height * ratio;
+
+              canvas.width = width;
+              canvas.height = height;
+              const ctx = canvas.getContext('2d');
+              ctx.drawImage(img, 0, 0, width, height);
+
+              canvas.toBlob(
+                (blob) => {
+                  if (!blob) {
+                    return resolve(file); // fallback to original
+                  }
+                  const compressedFile = new File([blob], file.name || 'photo.jpg', {
+                    type: blob.type || 'image/jpeg',
+                  });
+                  resolve(compressedFile);
+                },
+                'image/jpeg',
+                quality
+              );
+            } catch (err) {
+              console.error('Image compression failed, using original file', err);
+              resolve(file);
+            }
+          };
+          img.onerror = () => {
+            console.error('Failed to load image for compression, using original file');
+            resolve(file);
+          };
+          img.src = e.target.result;
+        };
+        reader.onerror = () => {
+          console.error('FileReader failed, using original file');
+          resolve(file);
+        };
+        reader.readAsDataURL(file);
+      } catch (err) {
+        console.error('Unexpected error during compression, using original file', err);
+        resolve(file);
+      }
+    });
+  };
+
   const uploadPhotoToStorage = async (userId, file) => {
     try {
       setUploadingPhoto(true);
@@ -455,9 +512,12 @@ const SwitchApp = () => {
         return null;
       }
       
+      // Compress image before upload so it fits safely in Firestore as base64
+      const optimizedFile = await compressImageFile(file);
+
       // Upload to Switch API (stores in Firebase switch_users collection)
       const formData = new FormData();
-      formData.append('file', file);
+      formData.append('file', optimizedFile);
       
       const res = await fetch(`${API_BASE}/api/switch/upload-photo/${userId}`, {
         method: 'POST',
@@ -1474,9 +1534,9 @@ const SwitchApp = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-emerald-50 via-white to-teal-50">
+    <div className="h-screen bg-gradient-to-br from-emerald-50 via-white to-teal-50 flex flex-col overflow-hidden">
       {/* Header */}
-      <div className="bg-white shadow-sm sticky top-0 z-50">
+      <div className="bg-white shadow-sm fixed top-0 left-0 right-0 z-50">
         <div className="max-w-md mx-auto px-4 py-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 bg-gradient-to-br from-emerald-500 to-teal-600 rounded-xl flex items-center justify-center shadow-lg">
@@ -1534,8 +1594,9 @@ const SwitchApp = () => {
         </div>
       </div>
 
-      {/* Main Content */}
-      <div className="max-w-md mx-auto px-4 py-6 pb-24">
+      {/* Main Content - Scrollable */}
+      <div className="flex-1 overflow-y-auto pt-20 pb-24">
+        <div className="max-w-md mx-auto px-4 py-6">
         {activeTab === 'home' && (
           <>
             {/* Quick Stats */}
@@ -1567,7 +1628,7 @@ const SwitchApp = () => {
                   swipeDirection === 'left' ? '-translate-x-full opacity-0' : 
                   swipeDirection === 'right' ? 'translate-x-full opacity-0' : ''
                 }`}
-                style={{ touchAction: 'none' }}
+                style={{ touchAction: 'pan-x' }}
               >
                 {/* Urgency Badge */}
                 {job.urgency && (
@@ -2091,6 +2152,7 @@ const SwitchApp = () => {
             </div>
           </div>
         )}
+        </div>
       </div>
 
 
