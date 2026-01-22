@@ -1102,6 +1102,50 @@ const SwitchApp = () => {
     setShowCallSchedule(false);
   };
 
+  const cancelApplication = async (jobToCancel) => {
+    if (!jobToCancel || !userId) return;
+    
+    // Confirm cancellation
+    if (!window.confirm(`Are you sure you want to cancel your application for ${jobToCancel.role} at ${jobToCancel.company}?`)) {
+      return;
+    }
+    
+    // Remove from applied jobs immediately (optimistic update)
+    const updatedAppliedJobs = appliedJobs.filter(job => job.id !== jobToCancel.id);
+    setAppliedJobs(updatedAppliedJobs);
+    
+    // Update user stats
+    setUserProfile(prev => ({
+      ...prev,
+      totalApplied: Math.max(0, (prev.totalApplied || 0) - 1)
+    }));
+    
+    // Sync to Switch API - update status to cancelled
+    try {
+      await fetch(`${API_BASE}/api/switch/applications/${userId}/${jobToCancel.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          status: 'cancelled',
+        }),
+      });
+      console.log('✅ Application cancelled in Switch API');
+      
+      // Reload applications to get server state
+      await loadApplicationsFromAPI();
+      
+      // Reload profile to get updated stats
+      const updatedProfile = await loadProfileFromFirestore(userId);
+      if (updatedProfile) {
+        setUserProfile(prev => ({ ...prev, ...updatedProfile }));
+      }
+    } catch (err) {
+      console.warn('Failed to cancel application in Switch API', err);
+      // Revert optimistic update on error
+      setAppliedJobs(appliedJobs);
+    }
+  };
+
   const copyReferralCode = () => {
     navigator.clipboard.writeText(`Join Switch! Use my code: ${userProfile.referralCode}\nGet job in 24 hours: switchlocally.com/r/${userProfile.referralCode}`);
     setCopiedReferral(true);
@@ -1879,7 +1923,8 @@ const SwitchApp = () => {
                     {/* Quick actions */}
                     <div className="flex gap-2 mt-3">
                       <button 
-                        onClick={() => {
+                        onClick={(e) => {
+                          e.stopPropagation();
                           setSelectedJob(job);
                           setShowJobDetail(true);
                         }}
@@ -1887,7 +1932,13 @@ const SwitchApp = () => {
                       >
                         View Details
                       </button>
-                      <button className="flex-1 bg-gray-50 text-gray-700 py-2 px-3 rounded-lg text-sm font-semibold hover:bg-gray-100 transition">
+                      <button 
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          cancelApplication(job);
+                        }}
+                        className="flex-1 bg-gray-50 text-gray-700 py-2 px-3 rounded-lg text-sm font-semibold hover:bg-gray-100 transition"
+                      >
                         Cancel
                       </button>
                     </div>
