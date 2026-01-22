@@ -29,6 +29,7 @@ const SwitchApp = () => {
   const currentX = useRef(0);
   const currentY = useRef(0);
   const isDragging = useRef(false);
+  const wasSwipe = useRef(false);
 
   const [currentCard, setCurrentCard] = useState(0);
   const [swipeDirection, setSwipeDirection] = useState(null);
@@ -845,6 +846,7 @@ const SwitchApp = () => {
   
   const handleTouchStart = (e) => {
     isDragging.current = true;
+    wasSwipe.current = false;
     startX.current = e.type === 'touchstart' ? e.touches[0].clientX : e.clientX;
     startY.current = e.type === 'touchstart' ? e.touches[0].clientY : e.clientY;
 
@@ -852,6 +854,8 @@ const SwitchApp = () => {
     if (cardRef.current) {
       cardRef.current.style.transition = 'none';
     }
+    
+    // Don't prevent default on touchstart - let browser handle scrolling
   };
 
   const handleTouchMove = (e) => {
@@ -862,10 +866,25 @@ const SwitchApp = () => {
     
     const deltaX = currentX.current - startX.current;
     const deltaY = currentY.current - startY.current;
+    const absDeltaX = Math.abs(deltaX);
+    const absDeltaY = Math.abs(deltaY);
     
-    // Only apply transform if horizontal swipe is dominant
-    if (Math.abs(deltaX) > Math.abs(deltaY)) {
-      // Prevent scrolling when swiping horizontally
+    // If vertical scrolling is clearly happening, don't interfere at all
+    if (absDeltaY > 15 && absDeltaY > absDeltaX * 1.5) {
+      // User is scrolling vertically - let browser handle it
+      if (cardRef.current) {
+        cardRef.current.style.transform = '';
+        cardRef.current.style.transition = '';
+      }
+      wasSwipe.current = false;
+      return; // Don't prevent default, allow scrolling
+    }
+    
+    // Only prevent scrolling and apply transform if horizontal swipe is clearly dominant
+    // Require horizontal movement to be at least 2x vertical movement and > 30px
+    if (absDeltaX > 30 && absDeltaX > absDeltaY * 2) {
+      wasSwipe.current = true;
+      // Only prevent scrolling when clearly swiping horizontally
       if (e.type === 'touchmove') {
         e.preventDefault();
       }
@@ -882,13 +901,14 @@ const SwitchApp = () => {
     if (!isDragging.current) return;
     
     const deltaX = currentX.current - startX.current;
+    const deltaY = currentY.current - startY.current;
     const threshold = 80; // Minimum swipe distance
     
     // Always reset dragging state
     isDragging.current = false;
     
     if (cardRef.current) {
-      if (Math.abs(deltaX) > threshold) {
+      if (Math.abs(deltaX) > threshold && wasSwipe.current) {
         // Clear inline transform before calling handleSwipe (let CSS handle animation)
         cardRef.current.style.transform = '';
         cardRef.current.style.transition = '';
@@ -905,8 +925,19 @@ const SwitchApp = () => {
         // Reset position - didn't swipe far enough
         cardRef.current.style.transition = 'transform 0.3s ease';
         cardRef.current.style.transform = 'translateX(0) rotate(0deg)';
+        
+        // If it was a tap (small movement), open the job detail modal
+        if (Math.abs(deltaX) < 10 && Math.abs(deltaY) < 10 && !wasSwipe.current && jobs[currentCard]) {
+          setSelectedJob(jobs[currentCard]);
+          setShowJobDetail(true);
+        }
       }
     }
+    
+    // Reset swipe flag after a short delay
+    setTimeout(() => {
+      wasSwipe.current = false;
+    }, 100);
   };
 
   // Reset card transform when card changes or swipe direction resets
@@ -928,10 +959,10 @@ const SwitchApp = () => {
       window.addEventListener('mousemove', handleTouchMove);
       window.addEventListener('mouseup', handleTouchEnd);
       
-      // Touch events for mobile
-      card.addEventListener('touchstart', handleTouchStart, { passive: false });
+      // Touch events for mobile - touchstart can be passive to allow scrolling
+      card.addEventListener('touchstart', handleTouchStart, { passive: true });
       window.addEventListener('touchmove', handleTouchMove, { passive: false });
-      window.addEventListener('touchend', handleTouchEnd);
+      window.addEventListener('touchend', handleTouchEnd, { passive: true });
       
       return () => {
         card.removeEventListener('mousedown', handleTouchStart);
@@ -1620,15 +1651,18 @@ const SwitchApp = () => {
               {/* Card */}
               <div 
                 ref={cardRef}
-                onClick={() => {
-                  setSelectedJob(job);
-                  setShowJobDetail(true);
+                onClick={(e) => {
+                  // Only open modal if it wasn't a swipe
+                  if (!wasSwipe.current && !isDragging.current) {
+                    setSelectedJob(job);
+                    setShowJobDetail(true);
+                  }
                 }}
                 className={`absolute inset-0 bg-white rounded-3xl shadow-2xl overflow-hidden cursor-grab active:cursor-grabbing select-none transition-all duration-300 ${
                   swipeDirection === 'left' ? '-translate-x-full opacity-0' : 
                   swipeDirection === 'right' ? 'translate-x-full opacity-0' : ''
                 }`}
-                style={{ touchAction: 'pan-x' }}
+                style={{ touchAction: 'pan-y pan-x', pointerEvents: 'auto' }}
               >
                 {/* Urgency Badge */}
                 {job.urgency && (
