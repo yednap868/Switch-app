@@ -2,7 +2,11 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Phone, MapPin, Wallet, Clock, Users, Briefcase, ArrowRight, X, Heart, Building2, IndianRupee, Home, Star, ChevronLeft, Menu, User, Edit, CheckCircle, TrendingUp, Award, Calendar, LogOut, HelpCircle, Share2, Copy, Check, Sparkles, MessageCircle, Video, Send, Gift, Zap, Target, Camera, Save, Upload, ToggleLeft, ToggleRight } from 'lucide-react';
 import posthog from 'posthog-js';
 
-const API_BASE = import.meta.env.VITE_API_BASE_URL || 'https://api.relayy.world';
+// In production, always use Relay backend. In dev, allow override via VITE_API_BASE_URL.
+const API_BASE =
+  import.meta.env.PROD
+    ? 'https://api.relayy.world'
+    : (import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000');
 
 // Initialize PostHog
 if (typeof window !== 'undefined') {
