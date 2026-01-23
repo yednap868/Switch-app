@@ -1498,7 +1498,7 @@ const SwitchApp = () => {
     
     try {
       setCommunityLoading(true);
-      const res = await fetch(`${API_BASE}/api/community/feed`, {
+      const res = await fetch(`${API_BASE}/api/community/feed?user_id=${userId}`, {
         method: 'GET',
         headers: { 'Content-Type': 'application/json' },
       });
@@ -1506,6 +1506,8 @@ const SwitchApp = () => {
       if (res.ok) {
         const data = await res.json();
         setCommunityPosts(data.posts || []);
+      } else {
+        console.error('Failed to load feed:', res.status);
       }
     } catch (err) {
       console.error('Failed to load community feed:', err);
@@ -1530,16 +1532,23 @@ const SwitchApp = () => {
       });
       
       if (res.ok) {
+        const data = await res.json();
         setNewRantText('');
         setShowRantModal(false);
         await loadCommunityFeed();
         
         posthog.capture('rant_posted', {
           user_id: userId,
+          post_id: data.post_id,
         });
+      } else {
+        const errorData = await res.json().catch(() => ({ detail: 'Failed to post' }));
+        console.error('Failed to post rant:', errorData);
+        alert('Post karne mein error aaya. Please try again.');
       }
     } catch (err) {
       console.error('Failed to post rant:', err);
+      alert('Network error. Please check your connection and try again.');
     } finally {
       setCommunityLoading(false);
     }
@@ -3008,7 +3017,7 @@ const SwitchApp = () => {
                 <textarea
                   value={newRantText}
                   onChange={(e) => setNewRantText(e.target.value)}
-                  placeholder="Share your thoughts about jobs, bosses, work life, or anything work-related..."
+                  placeholder="Apni baat share karo - jobs, boss, work life ke baare mein... (Hinglish mein likh sakte ho)"
                   className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-emerald-500 focus:outline-none resize-none text-gray-900"
                   rows={6}
                   maxLength={1000}
@@ -3021,7 +3030,7 @@ const SwitchApp = () => {
               <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-3 flex items-start gap-2">
                 <MessageCircle className="w-4 h-4 text-emerald-600 mt-0.5 flex-shrink-0" />
                 <p className="text-xs text-emerald-800">
-                  Your post will be anonymous. Share freely about your work experiences!
+                  Aapka post anonymous hoga. Apne work experiences ke baare mein freely share karo! Hinglish mein likh sakte ho.
                 </p>
               </div>
 
