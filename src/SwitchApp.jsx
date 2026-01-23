@@ -2883,19 +2883,19 @@ const SwitchApp = () => {
         {activeTab === 'community' && (
           <div className="space-y-4">
             {/* Header */}
-            <div className="flex items-center justify-between mb-4">
-              <div>
-                <h2 className="text-2xl font-bold text-gray-900">Community Feed</h2>
-                <p className="text-sm text-gray-600">Apni baat share karo, support lo</p>
-              </div>
-              <button
-                onClick={() => setShowRantModal(true)}
-                className="bg-gradient-to-br from-emerald-500 to-teal-600 text-white px-4 py-2 rounded-xl font-semibold shadow-lg hover:scale-105 active:scale-95 transition-transform flex items-center gap-2"
-              >
-                <MessageCircle className="w-4 h-4" />
-                Post
-              </button>
+            <div className="mb-4">
+              <h2 className="text-2xl font-bold text-gray-900">Community Feed</h2>
+              <p className="text-sm text-gray-600">Apni baat share karo, support lo</p>
             </div>
+
+            {/* Fixed Post Button */}
+            <button
+              onClick={() => setShowRantModal(true)}
+              className="fixed bottom-28 right-4 z-40 bg-gradient-to-br from-emerald-500 to-teal-600 text-white px-6 py-4 rounded-full font-semibold shadow-2xl hover:scale-110 active:scale-95 transition-transform flex items-center gap-2"
+            >
+              <MessageCircle className="w-5 h-5" />
+              <span className="font-bold">Post</span>
+            </button>
 
             {/* Posts Feed */}
             {communityLoading && communityPosts.length === 0 ? (
