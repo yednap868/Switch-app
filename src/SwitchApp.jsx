@@ -1408,6 +1408,16 @@ const SwitchApp = () => {
       setUserId(backendUserId);
       setSessionToken(backendSessionToken);
 
+      // Format phone number properly: +91 98765 43210
+      const phoneDigits = authPhone.trim();
+      const prettyPhone = `+${authCountryCode} ${phoneDigits.slice(0, 5)} ${phoneDigits.slice(5)}`;
+      
+      // Generate referral code if not exists
+      const referralCode = `SW${backendUserId.slice(-6).toUpperCase()}`;
+      
+      // Load profile from Switch API (will create if doesn't exist) - MUST load before using savedProfile
+      const savedProfile = await loadProfileFromFirestore(backendUserId);
+
       // Identify user in PostHog
       posthog.identify(backendUserId, {
         phone: authPhone.trim(),
@@ -1420,16 +1430,6 @@ const SwitchApp = () => {
         phone: authPhone.trim(),
         has_existing_profile: !!(savedProfile?.name && savedProfile?.preferredRoles && savedProfile.preferredRoles.length > 0),
       });
-
-      // Format phone number properly: +91 98765 43210
-      const phoneDigits = authPhone.trim();
-      const prettyPhone = `+${authCountryCode} ${phoneDigits.slice(0, 5)} ${phoneDigits.slice(5)}`;
-      
-      // Generate referral code if not exists
-      const referralCode = `SW${backendUserId.slice(-6).toUpperCase()}`;
-      
-      // Load profile from Switch API (will create if doesn't exist)
-      const savedProfile = await loadProfileFromFirestore(backendUserId);
       
       // Check if profile already has name and preferredRoles - if so, skip setup
       if (savedProfile?.name && savedProfile?.preferredRoles && savedProfile.preferredRoles.length > 0) {
