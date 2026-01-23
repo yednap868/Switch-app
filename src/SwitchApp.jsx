@@ -59,6 +59,9 @@ const SwitchApp = () => {
   const [showReferral, setShowReferral] = useState(false);
   const [copiedReferral, setCopiedReferral] = useState(false);
   const [showSuccessStory, setShowSuccessStory] = useState(false);
+  const [showInterviewPractice, setShowInterviewPractice] = useState(false);
+  const [practiceJob, setPracticeJob] = useState(null);
+  const [paymentLoading, setPaymentLoading] = useState(false);
   const [appliedJobs, setAppliedJobs] = useState([]);
   const [interviewJobs, setInterviewJobs] = useState([]);
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
@@ -1141,10 +1144,10 @@ const SwitchApp = () => {
         });
       }
       
-      // Show call schedule popup after 1 second
+      // Show interview practice popup after 1 second
       setTimeout(() => {
-        setSelectedJob(jobToApply);
-        setShowCallSchedule(true);
+        setPracticeJob(jobToApply);
+        setShowInterviewPractice(true);
       }, 1500);
     }
     
@@ -3174,6 +3177,194 @@ const SwitchApp = () => {
                   <Send className="w-5 h-5" />
                 </button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Interview Practice Modal */}
+      {showInterviewPractice && practiceJob && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4 animate-in fade-in duration-200">
+          <div className="bg-white rounded-3xl p-6 max-w-sm w-full shadow-2xl animate-in zoom-in duration-300">
+            <div className="text-center mb-6">
+              <div className="w-16 h-16 bg-gradient-to-br from-emerald-500 to-teal-600 rounded-2xl flex items-center justify-center mx-auto mb-4 text-4xl">
+                {practiceJob.logo}
+              </div>
+              <h2 className="text-2xl font-bold text-gray-900 mb-2">Applied! 🎉</h2>
+              <p className="text-gray-600 mb-4">
+                Humne company ko apki details bhej di hai. Call connect kar rahe hai.
+              </p>
+            </div>
+
+            <div className="bg-gradient-to-br from-amber-50 to-orange-50 rounded-2xl p-5 mb-6 border-2 border-amber-200">
+              <div className="flex items-start gap-3 mb-3">
+                <div className="w-10 h-10 bg-amber-500 rounded-xl flex items-center justify-center flex-shrink-0">
+                  <Zap className="w-5 h-5 text-white" />
+                </div>
+                <div className="flex-1">
+                  <h3 className="font-bold text-gray-900 mb-2">Interview Practice Karo!</h3>
+                  <p className="text-sm text-gray-700 mb-2">
+                    Us se pehle interview ke liye practice kare mere saath. Jo log practice karte hai unka interview nikal jata hai.
+                  </p>
+                  <p className="text-sm font-semibold text-emerald-700">
+                    Apne chances badhaye! 🚀
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 mb-6">
+              <div className="flex items-start gap-2">
+                <Video className="w-5 h-5 text-blue-600 mt-0.5 flex-shrink-0" />
+                <div>
+                  <p className="text-sm font-semibold text-gray-900 mb-1">Kya hoga practice call mein?</p>
+                  <ul className="text-xs text-gray-700 space-y-1">
+                    <li>• AI se interview questions practice karein</li>
+                    <li>• Apne answers improve karein</li>
+                    <li>• Confidence build karein</li>
+                    <li>• Interview ke liye ready ho jayein</li>
+                  </ul>
+                </div>
+              </div>
+            </div>
+
+            <div className="space-y-3 mb-6">
+              <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-4">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="font-semibold text-gray-900">Interview Practice</span>
+                  <span className="text-2xl font-bold text-emerald-600">₹50</span>
+                </div>
+                <p className="text-xs text-gray-600">
+                  AI se practice call milegi. Interview questions ka answer practice karein.
+                </p>
+              </div>
+            </div>
+
+            <div className="flex gap-3">
+              <button
+                onClick={() => {
+                  setShowInterviewPractice(false);
+                  setPracticeJob(null);
+                }}
+                className="flex-1 bg-gray-100 text-gray-700 py-3 rounded-xl font-semibold hover:bg-gray-200 transition"
+              >
+                Baad Mein
+              </button>
+              <button
+                onClick={async () => {
+                  if (!userId || !practiceJob) return;
+                  
+                  try {
+                    setPaymentLoading(true);
+                    
+                    // Create payment order
+                    const paymentRes = await fetch(`${API_BASE}/api/switch/practice-payment`, {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({
+                        user_id: userId,
+                        job_id: String(practiceJob.id),
+                        job_role: practiceJob.role,
+                        job_company: practiceJob.company,
+                        amount: 50,
+                      }),
+                    });
+                    
+                    if (paymentRes.ok) {
+                      const paymentData = await paymentRes.json();
+                      
+                      // Initialize Razorpay
+                      const options = {
+                        key: paymentData.razorpay_key,
+                        amount: paymentData.amount,
+                        currency: 'INR',
+                        name: 'Switch',
+                        description: `Interview Practice - ${practiceJob.role}`,
+                        order_id: paymentData.order_id,
+                        handler: async function(response) {
+                          // Payment successful - verify and initiate call
+                          try {
+                            const verifyRes = await fetch(`${API_BASE}/api/switch/practice-payment/verify`, {
+                              method: 'POST',
+                              headers: { 'Content-Type': 'application/json' },
+                              body: JSON.stringify({
+                                user_id: userId,
+                                job_id: String(practiceJob.id),
+                                payment_id: response.razorpay_payment_id,
+                                order_id: response.razorpay_order_id,
+                                signature: response.razorpay_signature,
+                              }),
+                            });
+                            
+                            if (verifyRes.ok) {
+                              setShowInterviewPractice(false);
+                              setPracticeJob(null);
+                              alert('Payment successful! Practice call connect ho rahi hai. Aapko call aayegi 2-3 minutes mein.');
+                              
+                              posthog.capture('practice_payment_success', {
+                                user_id: userId,
+                                job_id: String(practiceJob.id),
+                                amount: 50,
+                              });
+                            } else {
+                              alert('Payment verification failed. Please contact support.');
+                            }
+                          } catch (err) {
+                            console.error('Payment verification error:', err);
+                            alert('Payment verification error. Please contact support.');
+                          }
+                        },
+                        prefill: {
+                          name: userProfile.name || '',
+                          contact: userProfile.phone?.replace(/\D/g, '') || '',
+                        },
+                        theme: {
+                          color: '#10b981'
+                        }
+                      };
+                      
+                      const razorpay = new window.Razorpay(options);
+                      razorpay.open();
+                      
+                      razorpay.on('payment.failed', function(response) {
+                        console.error('Payment failed:', response);
+                        alert('Payment failed. Please try again.');
+                        setPaymentLoading(false);
+                        
+                        posthog.capture('practice_payment_failed', {
+                          user_id: userId,
+                          job_id: String(practiceJob.id),
+                          error: response.error?.description,
+                        });
+                      });
+                      
+                    } else {
+                      const errorData = await paymentRes.json().catch(() => ({ detail: 'Payment setup failed' }));
+                      alert('Payment setup mein error aaya. Phir se try karo.');
+                      console.error('Payment setup error:', errorData);
+                    }
+                  } catch (err) {
+                    console.error('Payment error:', err);
+                    alert('Payment mein error aaya. Phir se try karo.');
+                  } finally {
+                    setPaymentLoading(false);
+                  }
+                }}
+                disabled={paymentLoading || !userId}
+                className="flex-1 bg-gradient-to-br from-emerald-500 to-teal-600 text-white py-3 rounded-xl font-bold shadow-lg hover:scale-105 active:scale-95 transition-transform disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+              >
+                {paymentLoading ? (
+                  <>
+                    <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                    Processing...
+                  </>
+                ) : (
+                  <>
+                    <IndianRupee className="w-5 h-5" />
+                    Pay ₹50 & Practice
+                  </>
+                )}
+              </button>
             </div>
           </div>
         </div>
