@@ -1567,6 +1567,8 @@ const SwitchApp = () => {
       if (res.ok) {
         await loadCommunityFeed();
         posthog.capture('post_liked', { user_id: userId, post_id: postId });
+      } else {
+        console.error('Failed to like post:', res.status);
       }
     } catch (err) {
       console.error('Failed to like post:', err);
@@ -1589,9 +1591,22 @@ const SwitchApp = () => {
       
       if (res.ok) {
         setCommentText('');
-        setSelectedPost(null);
+        // Don't close modal, just refresh comments
         await loadCommunityFeed();
+        // Update selectedPost with new comments
+        const updatedRes = await fetch(`${API_BASE}/api/community/feed?user_id=${userId}`);
+        if (updatedRes.ok) {
+          const updatedData = await updatedRes.json();
+          const updatedPost = updatedData.posts.find(p => p.id === postId);
+          if (updatedPost) {
+            setSelectedPost(updatedPost);
+          }
+        }
         posthog.capture('comment_added', { user_id: userId, post_id: postId });
+      } else {
+        const errorData = await res.json().catch(() => ({ detail: 'Failed to comment' }));
+        console.error('Failed to add comment:', errorData);
+        alert('Comment karne mein error aaya. Phir se try karo.');
       }
     } catch (err) {
       console.error('Failed to add comment:', err);
@@ -2949,7 +2964,29 @@ const SwitchApp = () => {
                         <span className="text-sm font-medium">{post.comments_count || 0}</span>
                       </button>
 
-                      <button className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-gray-600 hover:bg-gray-50 transition">
+                      <button 
+                        onClick={async () => {
+                          try {
+                            const shareData = {
+                              title: 'Switch Community',
+                              text: post.text.substring(0, 100) + '...',
+                              url: window.location.href,
+                            };
+                            
+                            if (navigator.share) {
+                              await navigator.share(shareData);
+                              posthog.capture('post_shared', { user_id: userId, post_id: post.id });
+                            } else {
+                              // Fallback: Copy to clipboard
+                              await navigator.clipboard.writeText(post.text);
+                              alert('Post text copy ho gaya!');
+                            }
+                          } catch (err) {
+                            console.error('Share failed:', err);
+                          }
+                        }}
+                        className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-gray-600 hover:bg-gray-50 transition"
+                      >
                         <Share2 className="w-4 h-4" />
                         <span className="text-sm font-medium">Share</span>
                       </button>
