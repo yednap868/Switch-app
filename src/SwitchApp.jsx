@@ -1544,11 +1544,11 @@ const SwitchApp = () => {
       } else {
         const errorData = await res.json().catch(() => ({ detail: 'Failed to post' }));
         console.error('Failed to post rant:', errorData);
-        alert('Post karne mein error aaya. Please try again.');
+        alert('Post karne mein error aaya. Phir se try karo.');
       }
     } catch (err) {
       console.error('Failed to post rant:', err);
-      alert('Network error. Please check your connection and try again.');
+      alert('Network error. Apna internet check karo aur phir se try karo.');
     } finally {
       setCommunityLoading(false);
     }
@@ -2871,7 +2871,7 @@ const SwitchApp = () => {
             <div className="flex items-center justify-between mb-4">
               <div>
                 <h2 className="text-2xl font-bold text-gray-900">Community Feed</h2>
-                <p className="text-sm text-gray-600">Share your thoughts, get support</p>
+                <p className="text-sm text-gray-600">Apni baat share karo, support lo</p>
               </div>
               <button
                 onClick={() => setShowRantModal(true)}
@@ -2886,13 +2886,13 @@ const SwitchApp = () => {
             {communityLoading && communityPosts.length === 0 ? (
               <div className="text-center py-12">
                 <div className="w-12 h-12 border-4 border-emerald-500 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-                <p className="text-gray-600">Loading community posts...</p>
+                <p className="text-gray-600">Posts load ho rahe hain...</p>
               </div>
             ) : communityPosts.length === 0 ? (
               <div className="text-center py-12 bg-white rounded-2xl shadow-sm">
                 <MessageCircle className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-                <p className="text-gray-600 mb-2">No posts yet</p>
-                <p className="text-sm text-gray-500">Be the first to share your thoughts!</p>
+                <p className="text-gray-600 mb-2">Abhi koi posts nahi hai</p>
+                <p className="text-sm text-gray-500">Pehle aap apni baat share karo!</p>
               </div>
             ) : (
               <div className="space-y-4">
@@ -2907,7 +2907,7 @@ const SwitchApp = () => {
                           </div>
                           <div>
                             <div className="font-semibold text-gray-900">
-                              {post.is_anonymous ? 'Anonymous User' : post.author_name || 'User'}
+                              {post.is_anonymous ? (post.author_name || 'Naam nahi dikhega') : (post.author_name || 'User')}
                             </div>
                             <div className="text-xs text-gray-500">
                               {post.created_at ? new Date(post.created_at * 1000).toLocaleString('en-IN', {
@@ -2966,7 +2966,7 @@ const SwitchApp = () => {
                               </div>
                               <div className="flex-1">
                                 <div className="text-xs font-semibold text-gray-700">
-                                  {comment.is_anonymous ? 'Anonymous' : comment.author_name || 'User'}
+                                  {comment.is_anonymous ? (comment.author_name || 'Naam nahi dikhega') : (comment.author_name || 'User')}
                                 </div>
                                 <div className="text-sm text-gray-600">{comment.text}</div>
                               </div>
@@ -3030,7 +3030,7 @@ const SwitchApp = () => {
               <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-3 flex items-start gap-2">
                 <MessageCircle className="w-4 h-4 text-emerald-600 mt-0.5 flex-shrink-0" />
                 <p className="text-xs text-emerald-800">
-                  Aapka post anonymous hoga. Apne work experiences ke baare mein freely share karo! Hinglish mein likh sakte ho.
+                  Aapka naam nahi dikhega. Apne work experiences ke baare mein freely share karo! Hinglish mein likh sakte ho.
                 </p>
               </div>
 
@@ -3039,7 +3039,7 @@ const SwitchApp = () => {
                 disabled={!newRantText.trim() || communityLoading}
                 className="w-full bg-gradient-to-br from-emerald-500 to-teal-600 text-white py-4 rounded-xl font-bold text-lg shadow-lg hover:scale-105 active:scale-95 transition-transform disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                {communityLoading ? 'Posting...' : 'Post Rant'}
+                {communityLoading ? 'Post kar rahe hain...' : 'Post Karo'}
               </button>
             </div>
           </div>
@@ -3051,7 +3051,7 @@ const SwitchApp = () => {
         <div className="fixed inset-0 bg-black/50 z-50 flex items-end animate-in fade-in duration-200">
           <div className="bg-white w-full max-w-md mx-auto rounded-t-3xl max-h-[85vh] overflow-y-auto animate-in slide-in-from-bottom duration-300">
             <div className="sticky top-0 bg-white border-b border-gray-200 p-4 flex items-center justify-between">
-              <h2 className="text-xl font-bold">Comments</h2>
+              <h2 className="text-xl font-bold">Comments / जवाब</h2>
               <button 
                 onClick={() => {
                   setSelectedPost(null);
@@ -3071,7 +3071,7 @@ const SwitchApp = () => {
                 </div>
                 <div>
                   <div className="font-semibold text-gray-900">
-                    {selectedPost.is_anonymous ? 'Anonymous User' : selectedPost.author_name || 'User'}
+                    {selectedPost.is_anonymous ? (selectedPost.author_name || 'Naam nahi dikhega') : (selectedPost.author_name || 'User')}
                   </div>
                   <div className="text-xs text-gray-500">
                     {selectedPost.created_at ? new Date(selectedPost.created_at * 1000).toLocaleString('en-IN') : 'Just now'}
@@ -3092,7 +3092,7 @@ const SwitchApp = () => {
                     <div className="flex-1">
                       <div className="flex items-center gap-2 mb-1">
                         <span className="font-semibold text-gray-900 text-sm">
-                          {comment.is_anonymous ? 'Anonymous' : comment.author_name || 'User'}
+                          {comment.is_anonymous ? (comment.author_name || 'Naam nahi dikhega') : (comment.author_name || 'User')}
                         </span>
                         <span className="text-xs text-gray-500">
                           {comment.created_at ? new Date(comment.created_at * 1000).toLocaleString('en-IN', {
@@ -3109,7 +3109,7 @@ const SwitchApp = () => {
                 ))
               ) : (
                 <div className="text-center py-8 text-gray-500 text-sm">
-                  No comments yet. Be the first to comment!
+                  Abhi koi comments nahi hai. Pehle aap comment karo!
                 </div>
               )}
             </div>
@@ -3121,7 +3121,7 @@ const SwitchApp = () => {
                   type="text"
                   value={commentText}
                   onChange={(e) => setCommentText(e.target.value)}
-                  placeholder="Add a comment..."
+                  placeholder="Comment likho..."
                   className="flex-1 px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:border-emerald-500 focus:outline-none text-gray-900"
                   onKeyPress={(e) => {
                     if (e.key === 'Enter' && commentText.trim()) {
