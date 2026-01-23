@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Phone, MapPin, Wallet, Clock, Users, Briefcase, ArrowRight, X, Heart, Building2, IndianRupee, Home, Star, ChevronLeft, Menu, User, Edit, CheckCircle, TrendingUp, Award, Calendar, LogOut, HelpCircle, Share2, Copy, Check, Sparkles, MessageCircle, Video, Send, Gift, Zap, Target, Camera, Save, Upload, ToggleLeft, ToggleRight } from 'lucide-react';
+import { Phone, MapPin, Wallet, Clock, Users, Briefcase, ArrowRight, X, Heart, Building2, IndianRupee, Home, Star, ChevronLeft, Menu, User, Edit, CheckCircle, TrendingUp, Award, Calendar, LogOut, HelpCircle, Share2, Copy, Check, Sparkles, MessageCircle, Video, Send, Gift, Zap, Target, Camera, Save, Upload, ToggleLeft, ToggleRight, ThumbsUp, ThumbsDown } from 'lucide-react';
 import posthog from 'posthog-js';
 
 // In production, always use Relay backend. In dev, allow override via VITE_API_BASE_URL.
@@ -78,6 +78,14 @@ const SwitchApp = () => {
   const [authOtp, setAuthOtp] = useState('');
   const [authLoading, setAuthLoading] = useState(false);
   const [authError, setAuthError] = useState('');
+  
+  // Community Feed state
+  const [communityPosts, setCommunityPosts] = useState([]);
+  const [communityLoading, setCommunityLoading] = useState(false);
+  const [newRantText, setNewRantText] = useState('');
+  const [showRantModal, setShowRantModal] = useState(false);
+  const [selectedPost, setSelectedPost] = useState(null);
+  const [commentText, setCommentText] = useState('');
   
   const [userProfile, setUserProfile] = useState({
     phone: "",
@@ -648,6 +656,13 @@ const SwitchApp = () => {
     loadUserData();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Load community feed when tab is active
+  useEffect(() => {
+    if (activeTab === 'community' && userId) {
+      loadCommunityFeed();
+    }
+  }, [activeTab, userId]);
 
   // Reload profile and applications when userId changes
   useEffect(() => {
@@ -1474,6 +1489,103 @@ const SwitchApp = () => {
       setAuthError(err.message || 'Failed to verify OTP');
     } finally {
       setAuthLoading(false);
+    }
+  };
+
+  // Community Feed Functions
+  const loadCommunityFeed = async () => {
+    if (!userId) return;
+    
+    try {
+      setCommunityLoading(true);
+      const res = await fetch(`${API_BASE}/api/community/feed`, {
+        method: 'GET',
+        headers: { 'Content-Type': 'application/json' },
+      });
+      
+      if (res.ok) {
+        const data = await res.json();
+        setCommunityPosts(data.posts || []);
+      }
+    } catch (err) {
+      console.error('Failed to load community feed:', err);
+    } finally {
+      setCommunityLoading(false);
+    }
+  };
+
+  const postRant = async () => {
+    if (!newRantText.trim() || !userId) return;
+    
+    try {
+      setCommunityLoading(true);
+      const res = await fetch(`${API_BASE}/api/community/post`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          user_id: userId,
+          text: newRantText.trim(),
+          is_anonymous: true,
+        }),
+      });
+      
+      if (res.ok) {
+        setNewRantText('');
+        setShowRantModal(false);
+        await loadCommunityFeed();
+        
+        posthog.capture('rant_posted', {
+          user_id: userId,
+        });
+      }
+    } catch (err) {
+      console.error('Failed to post rant:', err);
+    } finally {
+      setCommunityLoading(false);
+    }
+  };
+
+  const likePost = async (postId) => {
+    if (!userId) return;
+    
+    try {
+      const res = await fetch(`${API_BASE}/api/community/post/${postId}/like`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ user_id: userId }),
+      });
+      
+      if (res.ok) {
+        await loadCommunityFeed();
+        posthog.capture('post_liked', { user_id: userId, post_id: postId });
+      }
+    } catch (err) {
+      console.error('Failed to like post:', err);
+    }
+  };
+
+  const addComment = async (postId) => {
+    if (!commentText.trim() || !userId) return;
+    
+    try {
+      const res = await fetch(`${API_BASE}/api/community/post/${postId}/comment`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          user_id: userId,
+          text: commentText.trim(),
+          is_anonymous: true,
+        }),
+      });
+      
+      if (res.ok) {
+        setCommentText('');
+        setSelectedPost(null);
+        await loadCommunityFeed();
+        posthog.capture('comment_added', { user_id: userId, post_id: postId });
+      }
+    } catch (err) {
+      console.error('Failed to add comment:', err);
     }
   };
 
@@ -2743,9 +2855,283 @@ const SwitchApp = () => {
             </div>
           </div>
         )}
+
+        {activeTab === 'community' && (
+          <div className="space-y-4">
+            {/* Header */}
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <h2 className="text-2xl font-bold text-gray-900">Community Feed</h2>
+                <p className="text-sm text-gray-600">Share your thoughts, get support</p>
+              </div>
+              <button
+                onClick={() => setShowRantModal(true)}
+                className="bg-gradient-to-br from-emerald-500 to-teal-600 text-white px-4 py-2 rounded-xl font-semibold shadow-lg hover:scale-105 active:scale-95 transition-transform flex items-center gap-2"
+              >
+                <MessageCircle className="w-4 h-4" />
+                Post
+              </button>
+            </div>
+
+            {/* Posts Feed */}
+            {communityLoading && communityPosts.length === 0 ? (
+              <div className="text-center py-12">
+                <div className="w-12 h-12 border-4 border-emerald-500 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+                <p className="text-gray-600">Loading community posts...</p>
+              </div>
+            ) : communityPosts.length === 0 ? (
+              <div className="text-center py-12 bg-white rounded-2xl shadow-sm">
+                <MessageCircle className="w-16 h-16 text-gray-300 mx-auto mb-4" />
+                <p className="text-gray-600 mb-2">No posts yet</p>
+                <p className="text-sm text-gray-500">Be the first to share your thoughts!</p>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {communityPosts.map((post) => (
+                  <div key={post.id} className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+                    {/* Post Header */}
+                    <div className="p-4 border-b border-gray-100">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                          <div className="w-10 h-10 bg-gradient-to-br from-emerald-400 to-teal-500 rounded-full flex items-center justify-center text-white font-bold">
+                            {post.author_name ? post.author_name[0].toUpperCase() : 'A'}
+                          </div>
+                          <div>
+                            <div className="font-semibold text-gray-900">
+                              {post.is_anonymous ? 'Anonymous User' : post.author_name || 'User'}
+                            </div>
+                            <div className="text-xs text-gray-500">
+                              {post.created_at ? new Date(post.created_at * 1000).toLocaleString('en-IN', {
+                                day: 'numeric',
+                                month: 'short',
+                                hour: '2-digit',
+                                minute: '2-digit'
+                              }) : 'Just now'}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Post Content */}
+                    <div className="p-4">
+                      <p className="text-gray-800 leading-relaxed whitespace-pre-wrap">{post.text}</p>
+                    </div>
+
+                    {/* Post Actions */}
+                    <div className="px-4 py-3 border-t border-gray-100 flex items-center justify-between">
+                      <button
+                        onClick={() => likePost(post.id)}
+                        className={`flex items-center gap-2 px-3 py-1.5 rounded-lg transition ${
+                          post.user_liked 
+                            ? 'bg-emerald-50 text-emerald-600' 
+                            : 'text-gray-600 hover:bg-gray-50'
+                        }`}
+                      >
+                        <ThumbsUp className={`w-4 h-4 ${post.user_liked ? 'fill-current' : ''}`} />
+                        <span className="text-sm font-medium">{post.likes_count || 0}</span>
+                      </button>
+
+                      <button
+                        onClick={() => setSelectedPost(post)}
+                        className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-gray-600 hover:bg-gray-50 transition"
+                      >
+                        <MessageCircle className="w-4 h-4" />
+                        <span className="text-sm font-medium">{post.comments_count || 0}</span>
+                      </button>
+
+                      <button className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-gray-600 hover:bg-gray-50 transition">
+                        <Share2 className="w-4 h-4" />
+                        <span className="text-sm font-medium">Share</span>
+                      </button>
+                    </div>
+
+                    {/* Comments Preview */}
+                    {post.comments && post.comments.length > 0 && (
+                      <div className="px-4 pb-4 border-t border-gray-100 pt-3">
+                        <div className="space-y-2">
+                          {post.comments.slice(0, 2).map((comment, idx) => (
+                            <div key={idx} className="flex gap-2">
+                              <div className="w-8 h-8 bg-gray-200 rounded-full flex items-center justify-center text-xs font-semibold text-gray-600 flex-shrink-0">
+                                {comment.is_anonymous ? 'A' : (comment.author_name?.[0] || 'U')}
+                              </div>
+                              <div className="flex-1">
+                                <div className="text-xs font-semibold text-gray-700">
+                                  {comment.is_anonymous ? 'Anonymous' : comment.author_name || 'User'}
+                                </div>
+                                <div className="text-sm text-gray-600">{comment.text}</div>
+                              </div>
+                            </div>
+                          ))}
+                          {post.comments.length > 2 && (
+                            <button
+                              onClick={() => setSelectedPost(post)}
+                              className="text-sm text-emerald-600 font-medium"
+                            >
+                              View {post.comments.length - 2} more comments
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
         </div>
       </div>
 
+      {/* Post Rant Modal */}
+      {showRantModal && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-end animate-in fade-in duration-200">
+          <div className="bg-white w-full max-w-md mx-auto rounded-t-3xl max-h-[80vh] overflow-y-auto animate-in slide-in-from-bottom duration-300">
+            <div className="sticky top-0 bg-white border-b border-gray-200 p-4 flex items-center justify-between">
+              <h2 className="text-xl font-bold">Post Your Rant</h2>
+              <button 
+                onClick={() => {
+                  setShowRantModal(false);
+                  setNewRantText('');
+                }}
+                className="p-2 hover:bg-gray-100 rounded-lg"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="p-4 space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  What's on your mind?
+                </label>
+                <textarea
+                  value={newRantText}
+                  onChange={(e) => setNewRantText(e.target.value)}
+                  placeholder="Share your thoughts about jobs, bosses, work life, or anything work-related..."
+                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-emerald-500 focus:outline-none resize-none text-gray-900"
+                  rows={6}
+                  maxLength={1000}
+                />
+                <div className="text-xs text-gray-500 mt-1 text-right">
+                  {newRantText.length}/1000
+                </div>
+              </div>
+
+              <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-3 flex items-start gap-2">
+                <MessageCircle className="w-4 h-4 text-emerald-600 mt-0.5 flex-shrink-0" />
+                <p className="text-xs text-emerald-800">
+                  Your post will be anonymous. Share freely about your work experiences!
+                </p>
+              </div>
+
+              <button
+                onClick={postRant}
+                disabled={!newRantText.trim() || communityLoading}
+                className="w-full bg-gradient-to-br from-emerald-500 to-teal-600 text-white py-4 rounded-xl font-bold text-lg shadow-lg hover:scale-105 active:scale-95 transition-transform disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {communityLoading ? 'Posting...' : 'Post Rant'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Comments Modal */}
+      {selectedPost && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-end animate-in fade-in duration-200">
+          <div className="bg-white w-full max-w-md mx-auto rounded-t-3xl max-h-[85vh] overflow-y-auto animate-in slide-in-from-bottom duration-300">
+            <div className="sticky top-0 bg-white border-b border-gray-200 p-4 flex items-center justify-between">
+              <h2 className="text-xl font-bold">Comments</h2>
+              <button 
+                onClick={() => {
+                  setSelectedPost(null);
+                  setCommentText('');
+                }}
+                className="p-2 hover:bg-gray-100 rounded-lg"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Original Post */}
+            <div className="p-4 border-b border-gray-100">
+              <div className="flex items-center gap-3 mb-2">
+                <div className="w-10 h-10 bg-gradient-to-br from-emerald-400 to-teal-500 rounded-full flex items-center justify-center text-white font-bold">
+                  {selectedPost.author_name ? selectedPost.author_name[0].toUpperCase() : 'A'}
+                </div>
+                <div>
+                  <div className="font-semibold text-gray-900">
+                    {selectedPost.is_anonymous ? 'Anonymous User' : selectedPost.author_name || 'User'}
+                  </div>
+                  <div className="text-xs text-gray-500">
+                    {selectedPost.created_at ? new Date(selectedPost.created_at * 1000).toLocaleString('en-IN') : 'Just now'}
+                  </div>
+                </div>
+              </div>
+              <p className="text-gray-800 mt-2">{selectedPost.text}</p>
+            </div>
+
+            {/* Comments List */}
+            <div className="p-4 space-y-4">
+              {selectedPost.comments && selectedPost.comments.length > 0 ? (
+                selectedPost.comments.map((comment, idx) => (
+                  <div key={idx} className="flex gap-3">
+                    <div className="w-10 h-10 bg-gray-200 rounded-full flex items-center justify-center text-sm font-semibold text-gray-600 flex-shrink-0">
+                      {comment.is_anonymous ? 'A' : (comment.author_name?.[0] || 'U')}
+                    </div>
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2 mb-1">
+                        <span className="font-semibold text-gray-900 text-sm">
+                          {comment.is_anonymous ? 'Anonymous' : comment.author_name || 'User'}
+                        </span>
+                        <span className="text-xs text-gray-500">
+                          {comment.created_at ? new Date(comment.created_at * 1000).toLocaleString('en-IN', {
+                            month: 'short',
+                            day: 'numeric',
+                            hour: '2-digit',
+                            minute: '2-digit'
+                          }) : 'Just now'}
+                        </span>
+                      </div>
+                      <p className="text-gray-700 text-sm">{comment.text}</p>
+                    </div>
+                  </div>
+                ))
+              ) : (
+                <div className="text-center py-8 text-gray-500 text-sm">
+                  No comments yet. Be the first to comment!
+                </div>
+              )}
+            </div>
+
+            {/* Add Comment */}
+            <div className="sticky bottom-0 bg-white border-t border-gray-200 p-4">
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  value={commentText}
+                  onChange={(e) => setCommentText(e.target.value)}
+                  placeholder="Add a comment..."
+                  className="flex-1 px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:border-emerald-500 focus:outline-none text-gray-900"
+                  onKeyPress={(e) => {
+                    if (e.key === 'Enter' && commentText.trim()) {
+                      addComment(selectedPost.id);
+                    }
+                  }}
+                />
+                <button
+                  onClick={() => addComment(selectedPost.id)}
+                  disabled={!commentText.trim()}
+                  className="bg-gradient-to-br from-emerald-500 to-teal-600 text-white px-6 py-2.5 rounded-xl font-semibold hover:scale-105 active:scale-95 transition-transform disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <Send className="w-5 h-5" />
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Call Schedule Modal */}
       {showCallSchedule && selectedJob && (
@@ -3448,6 +3834,21 @@ const SwitchApp = () => {
                   {appliedJobs.length}
                 </span>
               )}
+            </button>
+            
+            <button
+              onClick={() => {
+                setActiveTab('community');
+                loadCommunityFeed();
+              }}
+              className={`flex flex-col items-center gap-1 px-4 py-2 rounded-xl transition-all ${
+                activeTab === 'community' 
+                  ? 'bg-emerald-50 text-emerald-600' 
+                  : 'text-gray-500 hover:bg-gray-50'
+              }`}
+            >
+              <MessageCircle className="w-6 h-6" />
+              <span className="text-xs font-medium">Community</span>
             </button>
             
             <button
