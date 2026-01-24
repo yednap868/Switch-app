@@ -1145,10 +1145,11 @@ const SwitchApp = () => {
       }
       
       // Show interview practice popup after 1 second
-      setTimeout(() => {
-        setPracticeJob(jobToApply);
-        setShowInterviewPractice(true);
-      }, 1500);
+      // COMMENTED OUT: Interview practice feature disabled
+      // setTimeout(() => {
+      //   setPracticeJob(jobToApply);
+      //   setShowInterviewPractice(true);
+      // }, 1500);
     }
     
     // Move to next card for both left and right swipes (same timing as button click)
@@ -3182,8 +3183,8 @@ const SwitchApp = () => {
         </div>
       )}
 
-      {/* Interview Practice Modal */}
-      {showInterviewPractice && practiceJob && (
+      {/* Interview Practice Modal - COMMENTED OUT */}
+      {/* {showInterviewPractice && practiceJob && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4 animate-in fade-in duration-200">
           <div className="bg-white rounded-3xl p-6 max-w-sm w-full shadow-2xl animate-in zoom-in duration-300">
             <div className="text-center mb-6">
@@ -3368,7 +3369,7 @@ const SwitchApp = () => {
             </div>
           </div>
         </div>
-      )}
+      )} */}
 
       {/* Call Schedule Modal */}
       {showCallSchedule && selectedJob && (
