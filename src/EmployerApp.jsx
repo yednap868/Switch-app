@@ -565,7 +565,8 @@ const EmployerApp = ({ onSwitchToWorker }) => {
   const resetJobDraft = () => {
     setJobDraft({
       role: null,
-      customRole: '',
+      customRequirement: '', // Free-form requirement text
+      showAllRoles: false,
       jobType: 'full_time',
       urgency: 'same_day',
       duration: null,
@@ -586,9 +587,22 @@ const EmployerApp = ({ onSwitchToWorker }) => {
   };
 
   const postJob = () => {
+    // Determine the title - use custom requirement or role name
+    const jobTitle = jobDraft.customRequirement?.trim()
+      ? jobDraft.customRequirement.trim().slice(0, 100) // Limit title length
+      : jobDraft.role?.name || 'Custom Job';
+
     const newJob = {
       id: Date.now().toString(),
       ...jobDraft,
+      title: jobTitle,
+      // If custom requirement, create a pseudo-role object
+      role: jobDraft.role || {
+        id: 'custom',
+        name: jobTitle.slice(0, 50),
+        icon: '📋',
+        isCustom: true,
+      },
       budget: {
         min: parseInt(jobDraft.budgetMin) || 0,
         max: parseInt(jobDraft.budgetMax) || 0,
@@ -611,6 +625,7 @@ const EmployerApp = ({ onSwitchToWorker }) => {
       user_id: userId,
       job_id: newJob.id,
       role: newJob.role?.name,
+      is_custom_requirement: !!jobDraft.customRequirement?.trim(),
       job_type: newJob.jobType,
       urgency: newJob.urgency,
     });
@@ -936,7 +951,7 @@ const EmployerApp = ({ onSwitchToWorker }) => {
                           {job.role?.icon || '💼'}
                         </div>
                         <div className="flex-1">
-                          <h4 className="font-bold text-gray-900">{job.role?.name || 'Job'}</h4>
+                          <h4 className="font-bold text-gray-900 line-clamp-2">{job.title || job.role?.name || 'Job'}</h4>
                           <p className="text-sm text-gray-600">{job.location || 'Location not set'}</p>
                           <div className="flex items-center gap-2 mt-2">
                             <span className={`text-xs px-2 py-1 rounded-full ${getUrgencyColor(job.urgency)}`}>
@@ -968,7 +983,7 @@ const EmployerApp = ({ onSwitchToWorker }) => {
                         </div>
                         <div className="flex-1">
                           <h4 className="font-semibold text-gray-900">{match.candidate.name}</h4>
-                          <p className="text-sm text-gray-600">For: {match.job?.role?.name || 'Job'}</p>
+                          <p className="text-sm text-gray-600">For: {match.job?.title || match.job?.role?.name || 'Job'}</p>
                         </div>
                         <button className="px-4 py-2 bg-teal-500 text-white rounded-lg text-sm font-semibold">
                           Call
@@ -987,8 +1002,8 @@ const EmployerApp = ({ onSwitchToWorker }) => {
               {/* Job selector */}
               <div className="flex items-center justify-between">
                 <div>
-                  <h2 className="text-lg font-bold text-gray-900">
-                    {selectedJob?.role?.name || 'All Candidates'}
+                  <h2 className="text-lg font-bold text-gray-900 line-clamp-1">
+                    {selectedJob?.title || selectedJob?.role?.name || 'All Candidates'}
                   </h2>
                   <p className="text-sm text-gray-600">{candidates.length} workers available</p>
                 </div>
@@ -1159,7 +1174,7 @@ const EmployerApp = ({ onSwitchToWorker }) => {
                           {job.role?.icon || '💼'}
                         </div>
                         <div className="flex-1">
-                          <h3 className="font-bold text-gray-900">{job.role?.name || 'Job'}</h3>
+                          <h3 className="font-bold text-gray-900 line-clamp-2">{job.title || job.role?.name || 'Job'}</h3>
                           <p className="text-sm text-gray-600">{job.jobType === 'full_time' ? 'Full-time' : job.jobType === 'part_time' ? 'Part-time' : 'Gig'}</p>
                           <p className="text-sm text-teal-600 font-semibold">
                             {job.budget?.min && job.budget?.max
@@ -1225,7 +1240,7 @@ const EmployerApp = ({ onSwitchToWorker }) => {
                         </div>
                         <div className="flex-1">
                           <h3 className="font-bold text-gray-900">{match.candidate.name}</h3>
-                          <p className="text-sm text-gray-600">For: {match.job?.role?.name || 'Job'}</p>
+                          <p className="text-sm text-gray-600">For: {match.job?.title || match.job?.role?.name || 'Job'}</p>
                           <p className="text-xs text-gray-500">
                             Matched {new Date(match.matchedAt).toLocaleDateString()}
                           </p>
@@ -1434,34 +1449,95 @@ const EmployerApp = ({ onSwitchToWorker }) => {
             </div>
 
             <div className="p-6">
-              {/* Step 1: Role Selection */}
+              {/* Step 1: Requirement Input */}
               {postJobStep === 1 && (
                 <div className="space-y-4 animate-in fade-in duration-300">
                   <div className="text-center mb-4">
-                    <h3 className="text-lg font-semibold text-gray-900">Kaun sa kaam karna hai?</h3>
-                    <p className="text-sm text-gray-600">Select the role you need</p>
+                    <h3 className="text-lg font-semibold text-gray-900">Aapko kya chahiye?</h3>
+                    <p className="text-sm text-gray-600">Tell us what you need - any work, any requirement</p>
                   </div>
 
-                  <div className="grid grid-cols-3 gap-3">
-                    {AVAILABLE_ROLES.map((role) => (
-                      <button
-                        key={role.id}
-                        onClick={() => setJobDraft(prev => ({ ...prev, role }))}
-                        className={`p-3 rounded-xl border-2 transition-all text-center ${
-                          jobDraft.role?.id === role.id
-                            ? 'border-teal-500 bg-teal-50'
-                            : 'border-gray-200 hover:border-teal-300'
-                        }`}
-                      >
-                        <div className="text-2xl mb-1">{role.icon}</div>
-                        <div className="text-xs font-medium text-gray-900">{role.name}</div>
-                      </button>
-                    ))}
+                  {/* Free-form requirement input */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Apni requirement likhein *
+                    </label>
+                    <textarea
+                      value={jobDraft.customRequirement || ''}
+                      onChange={(e) => setJobDraft(prev => ({ ...prev, customRequirement: e.target.value, role: null }))}
+                      placeholder="Eg: Mujhe ek experienced cook chahiye jo North Indian khana bana sake, ya 2 helpers chahiye shop mein saman arrange karne ke liye..."
+                      className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-teal-500 focus:outline-none resize-none h-28 text-base"
+                    />
+                    <p className="text-xs text-gray-500 mt-1">Jitna detail doge, utna better match milega</p>
                   </div>
+
+                  {/* OR divider */}
+                  <div className="flex items-center gap-3 my-4">
+                    <div className="flex-1 h-px bg-gray-200"></div>
+                    <span className="text-sm text-gray-500 font-medium">ya select karo</span>
+                    <div className="flex-1 h-px bg-gray-200"></div>
+                  </div>
+
+                  {/* Quick select popular roles */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Popular Roles</label>
+                    <div className="flex flex-wrap gap-2">
+                      {AVAILABLE_ROLES.slice(0, 8).map((role) => (
+                        <button
+                          key={role.id}
+                          onClick={() => setJobDraft(prev => ({
+                            ...prev,
+                            role,
+                            customRequirement: '' // Clear custom when selecting role
+                          }))}
+                          className={`px-3 py-2 rounded-full border-2 transition-all text-sm flex items-center gap-1.5 ${
+                            jobDraft.role?.id === role.id
+                              ? 'border-teal-500 bg-teal-50 text-teal-700'
+                              : 'border-gray-200 hover:border-teal-300 text-gray-700'
+                          }`}
+                        >
+                          <span>{role.icon}</span>
+                          <span>{role.name}</span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Show more roles toggle */}
+                  <button
+                    onClick={() => setJobDraft(prev => ({ ...prev, showAllRoles: !prev.showAllRoles }))}
+                    className="text-teal-600 text-sm font-medium flex items-center gap-1"
+                  >
+                    {jobDraft.showAllRoles ? 'Show less' : 'Show all roles'}
+                    <ChevronRight className={`w-4 h-4 transition-transform ${jobDraft.showAllRoles ? 'rotate-90' : ''}`} />
+                  </button>
+
+                  {jobDraft.showAllRoles && (
+                    <div className="flex flex-wrap gap-2 animate-in fade-in duration-200">
+                      {AVAILABLE_ROLES.slice(8).map((role) => (
+                        <button
+                          key={role.id}
+                          onClick={() => setJobDraft(prev => ({
+                            ...prev,
+                            role,
+                            customRequirement: ''
+                          }))}
+                          className={`px-3 py-2 rounded-full border-2 transition-all text-sm flex items-center gap-1.5 ${
+                            jobDraft.role?.id === role.id
+                              ? 'border-teal-500 bg-teal-50 text-teal-700'
+                              : 'border-gray-200 hover:border-teal-300 text-gray-700'
+                          }`}
+                        >
+                          <span>{role.icon}</span>
+                          <span>{role.name}</span>
+                        </button>
+                      ))}
+                    </div>
+                  )}
 
                   <button
                     onClick={() => setPostJobStep(2)}
-                    disabled={!jobDraft.role}
+                    disabled={!jobDraft.role && !jobDraft.customRequirement?.trim()}
                     className="w-full bg-gradient-to-r from-teal-500 to-emerald-500 text-white py-4 rounded-xl font-bold text-lg shadow-lg disabled:opacity-50 mt-6"
                   >
                     Next
