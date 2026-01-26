@@ -116,9 +116,10 @@ const SwitchApp = ({ onSwitchToEmployer }) => {
   const [tempEditValue, setTempEditValue] = useState('');
 
   const [notifications, setNotifications] = useState([]);
+  const [jobs, setJobs] = useState([]); // Combined mock + employer-posted jobs
 
   // Mock job data - focused on Gurgaon non-tech roles with real depth
-  const jobs = [
+  const MOCK_JOBS = [
     {
       id: 1,
       company: "Swiggy",
@@ -271,6 +272,81 @@ const SwitchApp = ({ onSwitchToEmployer }) => {
       employeesHired: 189
     }
   ];
+
+  // Load jobs: combine mock jobs with employer-posted jobs from localStorage
+  useEffect(() => {
+    const loadJobs = () => {
+      try {
+        // Get employer-posted jobs from shared storage
+        const postedJobsRaw = localStorage.getItem('switch_posted_jobs');
+        const postedJobs = postedJobsRaw ? JSON.parse(postedJobsRaw) : [];
+
+        // Filter only active jobs
+        const activePostedJobs = postedJobs.filter(job => job.status === 'active');
+
+        // Transform employer jobs to match the job card format
+        const formattedPostedJobs = activePostedJobs.map(job => ({
+          id: job.id,
+          company: job.company || 'Local Business',
+          logo: job.logo || job.role?.icon || '📋',
+          role: job.title || job.role?.name || 'Job Opening',
+          salary: job.salary || 'Negotiable',
+          salaryPeriod: '',
+          location: job.location || 'Gurgaon',
+          distance: job.distance || '< 5 km',
+          type: job.jobType === 'full_time' ? 'Full Time' :
+                job.jobType === 'part_time' ? 'Part Time' : 'Gig',
+          shift: job.timing || 'Flexible',
+          joining: job.urgencyLabel || 'Flexible',
+          urgency: job.urgency === 'instant' ? 'URGENT' :
+                   job.urgency === 'same_day' ? 'HIRING NOW' : undefined,
+          requirements: job.highlights || [],
+          benefits: [],
+          openings: job.workersNeeded || 1,
+          featured: job.urgency === 'instant' || job.urgency === 'same_day',
+          description: job.description || job.customRequirement || '',
+          companyRating: 0,
+          avgHiringTime: job.urgency === 'instant' ? '1 hour' :
+                         job.urgency === 'same_day' ? '24 hours' : '2-3 days',
+          employeesHired: 0,
+          // Keep original employer data
+          employerId: job.employerId,
+          employerName: job.employerName,
+          employerPhone: job.employerPhone,
+          isEmployerPosted: true,
+        }));
+
+        // Combine: employer jobs first (newest), then mock jobs
+        setJobs([...formattedPostedJobs, ...MOCK_JOBS]);
+
+        if (formattedPostedJobs.length > 0) {
+          console.log(`✅ Loaded ${formattedPostedJobs.length} employer-posted jobs`);
+        }
+      } catch (err) {
+        console.warn('Failed to load employer jobs, using mock jobs only', err);
+        setJobs(MOCK_JOBS);
+      }
+    };
+
+    loadJobs();
+
+    // Listen for storage changes (when employer posts a new job)
+    const handleStorageChange = (e) => {
+      if (e.key === 'switch_posted_jobs') {
+        loadJobs();
+      }
+    };
+
+    window.addEventListener('storage', handleStorageChange);
+
+    // Also poll periodically in case storage event doesn't fire (same tab)
+    const pollInterval = setInterval(loadJobs, 5000);
+
+    return () => {
+      window.removeEventListener('storage', handleStorageChange);
+      clearInterval(pollInterval);
+    };
+  }, []);
 
   // ==================== SWITCH API FUNCTIONS ====================
   
@@ -1143,7 +1219,40 @@ const SwitchApp = ({ onSwitchToEmployer }) => {
           console.warn('Failed to sync job application to Switch API', err);
         });
       }
-      
+
+      // If this is an employer-posted job, update applications count in localStorage
+      if (jobToApply.isEmployerPosted && jobToApply.employerId) {
+        try {
+          const postedJobs = JSON.parse(localStorage.getItem('switch_posted_jobs') || '[]');
+          const updatedJobs = postedJobs.map(job => {
+            if (job.id === jobToApply.id) {
+              // Add this application to the job
+              const applications = job.workerApplications || [];
+              applications.push({
+                odId: userId,
+                workerName: userProfile.name || 'Worker',
+                workerPhone: userProfile.phone || '',
+                workerPhoto: userProfile.photoURL,
+                workerExperience: userProfile.experience,
+                workerSkills: userProfile.preferredRoles,
+                appliedAt: new Date().toISOString(),
+                status: 'pending',
+              });
+              return {
+                ...job,
+                applications: (job.applications || 0) + 1,
+                workerApplications: applications,
+              };
+            }
+            return job;
+          });
+          localStorage.setItem('switch_posted_jobs', JSON.stringify(updatedJobs));
+          console.log('✅ Application recorded for employer-posted job');
+        } catch (err) {
+          console.warn('Failed to update employer job applications', err);
+        }
+      }
+
       // Show interview practice popup after 1 second
       // COMMENTED OUT: Interview practice feature disabled
       // setTimeout(() => {

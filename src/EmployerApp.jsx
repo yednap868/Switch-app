@@ -226,22 +226,7 @@ const EmployerApp = ({ onSwitchToWorker }) => {
   });
 
   // ==================== MY JOBS ====================
-  const [myJobs, setMyJobs] = useState([
-    // Mock data for demo
-    {
-      id: '1',
-      role: { id: 'waiter', name: 'Waiter', icon: '🍽️' },
-      jobType: 'full_time',
-      urgency: 'same_day',
-      budget: { min: 400, max: 500, type: 'daily' },
-      location: 'Sector 29, Gurgaon',
-      status: 'active',
-      views: 15,
-      applications: 8,
-      matches: 3,
-      createdAt: new Date(Date.now() - 2 * 60 * 60 * 1000),
-    },
-  ]);
+  const [myJobs, setMyJobs] = useState([]); // Loaded from localStorage
   const [selectedJob, setSelectedJob] = useState(null);
 
   // ==================== CANDIDATES ====================
@@ -289,6 +274,9 @@ const EmployerApp = ({ onSwitchToWorker }) => {
             if (savedProfile) {
               setEmployerProfile(JSON.parse(savedProfile));
             }
+
+            // Load employer's posted jobs from shared storage
+            loadMyJobs(session.userId);
           }
         } catch (err) {
           console.warn('Failed to restore employer session', err);
@@ -302,6 +290,32 @@ const EmployerApp = ({ onSwitchToWorker }) => {
 
     loadSession();
   }, []);
+
+  // Load employer's jobs from localStorage
+  const loadMyJobs = (employerId) => {
+    try {
+      const allJobs = JSON.parse(localStorage.getItem('switch_posted_jobs') || '[]');
+      // Filter jobs by this employer
+      const myPostedJobs = allJobs.filter(job => job.employerId === employerId);
+      if (myPostedJobs.length > 0) {
+        setMyJobs(myPostedJobs);
+        console.log(`✅ Loaded ${myPostedJobs.length} of your jobs`);
+      }
+    } catch (err) {
+      console.warn('Failed to load employer jobs', err);
+    }
+  };
+
+  // Periodically refresh jobs to get updated application counts
+  useEffect(() => {
+    if (userId && authStage === 'verified') {
+      const refreshInterval = setInterval(() => {
+        loadMyJobs(userId);
+      }, 5000); // Refresh every 5 seconds
+
+      return () => clearInterval(refreshInterval);
+    }
+  }, [userId, authStage]);
 
   // ==================== AUTH FUNCTIONS ====================
   const requestOtp = async () => {
@@ -592,11 +606,40 @@ const EmployerApp = ({ onSwitchToWorker }) => {
       ? jobDraft.customRequirement.trim().slice(0, 100) // Limit title length
       : jobDraft.role?.name || 'Custom Job';
 
+    // Format salary string based on payment type
+    const formatSalary = () => {
+      const min = parseInt(jobDraft.budgetMin) || 0;
+      const max = parseInt(jobDraft.budgetMax) || 0;
+      const typeLabel = jobDraft.paymentType === 'hourly' ? '/hr' :
+                       jobDraft.paymentType === 'daily' ? '/day' : '/month';
+      if (min && max) {
+        return `₹${min} - ₹${max}${typeLabel}`;
+      } else if (max) {
+        return `Up to ₹${max}${typeLabel}`;
+      } else if (min) {
+        return `₹${min}+${typeLabel}`;
+      }
+      return 'Negotiable';
+    };
+
+    // Get shift timing label
+    const getShiftLabel = () => {
+      const shift = SHIFT_OPTIONS.find(s => s.id === jobDraft.shift);
+      return shift ? `${shift.nameHi} (${shift.time})` : 'Flexible';
+    };
+
+    // Get urgency label
+    const getUrgencyLabel = () => {
+      const urgency = URGENCY_OPTIONS.find(u => u.id === jobDraft.urgency);
+      return urgency ? urgency.name : 'Flexible';
+    };
+
     const newJob = {
       id: Date.now().toString(),
+
+      // Employer-side data
       ...jobDraft,
       title: jobTitle,
-      // If custom requirement, create a pseudo-role object
       role: jobDraft.role || {
         id: 'custom',
         name: jobTitle.slice(0, 50),
@@ -613,11 +656,40 @@ const EmployerApp = ({ onSwitchToWorker }) => {
       views: 0,
       applications: 0,
       matches: 0,
-      createdAt: new Date(),
+      createdAt: new Date().toISOString(),
+
+      // Worker-side compatible fields (for job cards)
+      company: employerProfile.businessName || 'Local Business',
+      logo: jobDraft.role?.icon || '📋',
+      salary: formatSalary(),
+      timing: getShiftLabel(),
+      urgencyLabel: getUrgencyLabel(),
+      distance: '< 5 km', // Will be calculated based on actual location
+      highlights: [
+        jobDraft.jobType === 'full_time' ? 'Full-time' : jobDraft.jobType === 'part_time' ? 'Part-time' : 'Gig Work',
+        getUrgencyLabel(),
+        jobDraft.experience === 'fresher_ok' ? 'Freshers Welcome' : `${jobDraft.experience.replace('_', ' ')} exp`,
+      ].filter(Boolean),
+      description: jobDraft.customRequirement || `Looking for ${jobDraft.role?.name || 'workers'}`,
+      employerId: userId,
+      employerName: employerProfile.ownerName || 'Employer',
+      employerPhone: employerProfile.phone || '',
     };
 
+    // Save to employer's local state
     setMyJobs(prev => [newJob, ...prev]);
     setSelectedJob(newJob);
+
+    // Save to shared localStorage for worker app to read
+    try {
+      const existingJobs = JSON.parse(localStorage.getItem('switch_posted_jobs') || '[]');
+      const updatedJobs = [newJob, ...existingJobs];
+      localStorage.setItem('switch_posted_jobs', JSON.stringify(updatedJobs));
+      console.log('✅ Job saved to shared storage for workers');
+    } catch (err) {
+      console.warn('Failed to save job to shared storage', err);
+    }
+
     setShowPostJob(false);
     resetJobDraft();
 
