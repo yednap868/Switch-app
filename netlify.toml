@@ -1,7 +1,18 @@
 [build]
   command = "npm run build"
   publish = "dist"
+  functions = "netlify/functions"
 
+[functions]
+  node_bundler = "esbuild"
+
+# Redirect API calls to the Netlify function
+[[redirects]]
+  from = "/api/switch/available-workers"
+  to = "/.netlify/functions/available-workers"
+  status = 200
+
+# Redirect all other routes to index.html for SPA
 [[redirects]]
   from = "/*"
   to = "/index.html"
@@ -9,4 +20,3 @@
 
 [build.environment]
   NODE_VERSION = "18"
-

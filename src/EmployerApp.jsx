@@ -323,42 +323,62 @@ const EmployerApp = ({ onSwitchToWorker }) => {
   // Fetch available workers from the API
   const loadAvailableWorkers = async () => {
     setCandidatesLoading(true);
+
+    // Helper to transform worker data to candidate format
+    const transformWorkers = (workers) => workers.map(worker => ({
+      id: worker.userId || worker.id,
+      name: worker.name || 'Worker',
+      photoURL: worker.photoURL || null,
+      experience: worker.experience || 'Not specified',
+      experienceYears: parseExperienceYears(worker.experience),
+      skills: worker.preferredRoles || [],
+      languages: worker.languages || ['Hindi'],
+      location: worker.location || 'Gurgaon',
+      distance: calculateDistance(worker.location),
+      available: worker.isAvailable !== false,
+      availableWhen: worker.isAvailable ? 'Immediately' : 'Not available',
+      rating: worker.rating || 0,
+      jobsCompleted: worker.jobsCompleted || 0,
+      verified: worker.verified || false,
+      expectedPay: worker.expectedPay || 'Negotiable',
+      bio: worker.bio || `${worker.experience || ''} experience. ${(worker.preferredRoles || []).join(', ')}`,
+      phone: worker.phone || '',
+    }));
+
+    // Try 1: Local Netlify function (works when deployed on Netlify)
     try {
-      // Try to fetch available workers from API
-      const res = await fetch(`${API_BASE}/api/switch/available-workers`);
-      if (res.ok) {
-        const data = await res.json();
+      const localRes = await fetch('/api/switch/available-workers');
+      if (localRes.ok) {
+        const data = await localRes.json();
         const workers = data.workers || [];
-
-        // Transform API response to candidate format
-        const formattedWorkers = workers.map(worker => ({
-          id: worker.userId || worker.id,
-          name: worker.name || 'Worker',
-          photoURL: worker.photoURL || null,
-          experience: worker.experience || 'Not specified',
-          experienceYears: parseExperienceYears(worker.experience),
-          skills: worker.preferredRoles || [],
-          languages: worker.languages || ['Hindi'],
-          location: worker.location || 'Gurgaon',
-          distance: calculateDistance(worker.location),
-          available: worker.isAvailable !== false,
-          availableWhen: worker.isAvailable ? 'Immediately' : 'Not available',
-          rating: worker.rating || 0,
-          jobsCompleted: worker.jobsCompleted || 0,
-          verified: worker.verified || false,
-          expectedPay: worker.expectedPay || 'Negotiable',
-          bio: worker.bio || `${worker.experience || ''} experience. ${(worker.preferredRoles || []).join(', ')}`,
-          phone: worker.phone || '',
-        }));
-
-        if (formattedWorkers.length > 0) {
+        if (workers.length > 0) {
+          const formattedWorkers = transformWorkers(workers);
           setCandidates(formattedWorkers);
-          console.log(`✅ Loaded ${formattedWorkers.length} workers from API`);
+          console.log(`✅ Loaded ${formattedWorkers.length} workers from Netlify function`);
+          setCandidatesLoading(false);
           return;
         }
       }
     } catch (err) {
-      console.warn('API fetch failed, trying localStorage', err);
+      console.warn('Netlify function not available, trying main API', err);
+    }
+
+    // Try 2: Main backend API
+    try {
+      const res = await fetch(`${API_BASE}/api/switch/available-workers`);
+      if (res.ok) {
+        const data = await res.json();
+        const workers = data.workers || [];
+        if (workers.length > 0) {
+          const formattedWorkers = transformWorkers(workers);
+          setCandidates(formattedWorkers);
+          console.log(`✅ Loaded ${formattedWorkers.length} workers from main API`);
+          setCandidatesLoading(false);
+          return;
+        }
+      }
+    } catch (err) {
+      console.warn('Main API fetch failed, trying localStorage', err);
     }
 
     // Fallback: Load workers from localStorage (those who have applied or signed up)
