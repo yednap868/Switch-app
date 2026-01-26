@@ -36,7 +36,7 @@ const firebaseConfig = {
 // const db = getFirestore(app);
 // const storage = getStorage(app);
 
-const SwitchApp = () => {
+const SwitchApp = ({ onSwitchToEmployer }) => {
   // Swipe refs
   const cardRef = useRef(null);
   const startX = useRef(0);
@@ -2823,7 +2823,27 @@ const SwitchApp = () => {
                 </div>
               </button>
 
-              <button 
+              {/* Switch to Employer Mode */}
+              {onSwitchToEmployer && (
+                <button
+                  onClick={() => {
+                    posthog.capture('switched_to_employer_mode', { user_id: userId });
+                    onSwitchToEmployer();
+                  }}
+                  className="w-full bg-gradient-to-r from-teal-50 to-emerald-50 rounded-xl p-4 flex items-center justify-between shadow-sm border border-teal-200 hover:border-teal-300 transition"
+                >
+                  <div className="flex items-center gap-3">
+                    <Building2 className="w-5 h-5 text-teal-600" />
+                    <div className="text-left">
+                      <div className="font-semibold text-gray-900">Looking to Hire?</div>
+                      <div className="text-xs text-teal-600">Switch to Employer Mode</div>
+                    </div>
+                  </div>
+                  <ArrowRight className="w-5 h-5 text-teal-500" />
+                </button>
+              )}
+
+              <button
                 onClick={() => {
                   // Track logout
                   posthog.capture('user_logged_out', {
