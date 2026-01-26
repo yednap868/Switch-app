@@ -273,59 +273,89 @@ const SwitchApp = ({ onSwitchToEmployer }) => {
     }
   ];
 
-  // Load jobs: combine mock jobs with employer-posted jobs from localStorage
+  // Load jobs: combine Firestore jobs, localStorage jobs, and mock jobs
   useEffect(() => {
-    const loadJobs = () => {
+    // Helper to transform employer job to worker card format
+    const transformJob = (job) => ({
+      id: job.id,
+      company: job.company || 'Local Business',
+      logo: job.logo || job.role?.icon || '📋',
+      role: job.title || job.role?.name || 'Job Opening',
+      salary: job.salary || 'Negotiable',
+      salaryPeriod: '',
+      location: job.location || 'Gurgaon',
+      distance: job.distance || '< 5 km',
+      type: job.jobType === 'full_time' ? 'Full Time' :
+            job.jobType === 'part_time' ? 'Part Time' : 'Gig',
+      shift: job.timing || job.workingHours || 'Flexible',
+      joining: job.urgencyLabel || 'Flexible',
+      urgency: job.urgency === 'instant' ? 'URGENT' :
+               job.urgency === 'same_day' ? 'HIRING NOW' : undefined,
+      requirements: job.highlights || job.tags || [],
+      benefits: job.benefits || [],
+      openings: job.workersNeeded || 1,
+      featured: job.urgency === 'instant' || job.urgency === 'same_day',
+      description: job.description || job.customRequirement || '',
+      companyRating: 0,
+      avgHiringTime: job.urgency === 'instant' ? '1 hour' :
+                     job.urgency === 'same_day' ? '24 hours' : '2-3 days',
+      employeesHired: 0,
+      employerId: job.employerId,
+      employerName: job.employerName,
+      employerPhone: job.employerPhone,
+      isEmployerPosted: true,
+    });
+
+    const loadJobs = async () => {
+      const allJobs = [];
+      const seenIds = new Set();
+
+      // Try 1: Fetch jobs from Firestore via Netlify function
       try {
-        // Get employer-posted jobs from shared storage
-        const postedJobsRaw = localStorage.getItem('switch_posted_jobs');
-        const postedJobs = postedJobsRaw ? JSON.parse(postedJobsRaw) : [];
-
-        // Filter only active jobs
-        const activePostedJobs = postedJobs.filter(job => job.status === 'active');
-
-        // Transform employer jobs to match the job card format
-        const formattedPostedJobs = activePostedJobs.map(job => ({
-          id: job.id,
-          company: job.company || 'Local Business',
-          logo: job.logo || job.role?.icon || '📋',
-          role: job.title || job.role?.name || 'Job Opening',
-          salary: job.salary || 'Negotiable',
-          salaryPeriod: '',
-          location: job.location || 'Gurgaon',
-          distance: job.distance || '< 5 km',
-          type: job.jobType === 'full_time' ? 'Full Time' :
-                job.jobType === 'part_time' ? 'Part Time' : 'Gig',
-          shift: job.timing || 'Flexible',
-          joining: job.urgencyLabel || 'Flexible',
-          urgency: job.urgency === 'instant' ? 'URGENT' :
-                   job.urgency === 'same_day' ? 'HIRING NOW' : undefined,
-          requirements: job.highlights || [],
-          benefits: [],
-          openings: job.workersNeeded || 1,
-          featured: job.urgency === 'instant' || job.urgency === 'same_day',
-          description: job.description || job.customRequirement || '',
-          companyRating: 0,
-          avgHiringTime: job.urgency === 'instant' ? '1 hour' :
-                         job.urgency === 'same_day' ? '24 hours' : '2-3 days',
-          employeesHired: 0,
-          // Keep original employer data
-          employerId: job.employerId,
-          employerName: job.employerName,
-          employerPhone: job.employerPhone,
-          isEmployerPosted: true,
-        }));
-
-        // Combine: employer jobs first (newest), then mock jobs
-        setJobs([...formattedPostedJobs, ...MOCK_JOBS]);
-
-        if (formattedPostedJobs.length > 0) {
-          console.log(`✅ Loaded ${formattedPostedJobs.length} employer-posted jobs`);
+        const res = await fetch('/api/switch/jobs');
+        if (res.ok) {
+          const data = await res.json();
+          const firestoreJobs = data.jobs || [];
+          for (const job of firestoreJobs) {
+            if (!seenIds.has(job.id)) {
+              seenIds.add(job.id);
+              allJobs.push(transformJob(job));
+            }
+          }
+          console.log(`✅ Loaded ${firestoreJobs.length} jobs from Firestore`);
         }
       } catch (err) {
-        console.warn('Failed to load employer jobs, using mock jobs only', err);
-        setJobs(MOCK_JOBS);
+        console.warn('Firestore fetch failed, using localStorage', err);
       }
+
+      // Try 2: Get employer-posted jobs from localStorage
+      try {
+        const postedJobsRaw = localStorage.getItem('switch_posted_jobs');
+        const postedJobs = postedJobsRaw ? JSON.parse(postedJobsRaw) : [];
+        const activePostedJobs = postedJobs.filter(job => job.status === 'active');
+
+        for (const job of activePostedJobs) {
+          if (!seenIds.has(job.id)) {
+            seenIds.add(job.id);
+            allJobs.push(transformJob(job));
+          }
+        }
+
+        if (activePostedJobs.length > 0) {
+          console.log(`✅ Loaded ${activePostedJobs.length} jobs from localStorage`);
+        }
+      } catch (err) {
+        console.warn('Failed to load localStorage jobs', err);
+      }
+
+      // Combine with mock jobs (only add those not already present)
+      for (const job of MOCK_JOBS) {
+        if (!seenIds.has(job.id)) {
+          allJobs.push(job);
+        }
+      }
+
+      setJobs(allJobs);
     };
 
     loadJobs();
@@ -339,8 +369,8 @@ const SwitchApp = ({ onSwitchToEmployer }) => {
 
     window.addEventListener('storage', handleStorageChange);
 
-    // Also poll periodically in case storage event doesn't fire (same tab)
-    const pollInterval = setInterval(loadJobs, 5000);
+    // Poll periodically to catch Firestore updates and storage events
+    const pollInterval = setInterval(loadJobs, 10000);
 
     return () => {
       window.removeEventListener('storage', handleStorageChange);

@@ -6,13 +6,28 @@
 [functions]
   node_bundler = "esbuild"
 
-# Redirect API calls to the Netlify function
+# API redirects to Netlify functions (order matters - specific routes first)
 [[redirects]]
   from = "/api/switch/available-workers"
   to = "/.netlify/functions/available-workers"
   status = 200
 
-# Redirect all other routes to index.html for SPA
+[[redirects]]
+  from = "/api/switch/post-job"
+  to = "/.netlify/functions/post-job"
+  status = 200
+
+[[redirects]]
+  from = "/api/switch/employer-jobs"
+  to = "/.netlify/functions/employer-jobs"
+  status = 200
+
+[[redirects]]
+  from = "/api/switch/jobs"
+  to = "/.netlify/functions/jobs"
+  status = 200
+
+# Redirect all other routes to index.html for SPA (must be last)
 [[redirects]]
   from = "/*"
   to = "/index.html"

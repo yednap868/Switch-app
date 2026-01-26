@@ -871,7 +871,7 @@ const EmployerApp = ({ onSwitchToWorker }) => {
     setMyJobs(prev => [newJob, ...prev]);
     setSelectedJob(newJob);
 
-    // Save to shared localStorage for worker app to read
+    // Save to shared localStorage for worker app to read (immediate sync)
     try {
       const existingJobs = JSON.parse(localStorage.getItem('switch_posted_jobs') || '[]');
       const updatedJobs = [newJob, ...existingJobs];
@@ -880,6 +880,37 @@ const EmployerApp = ({ onSwitchToWorker }) => {
     } catch (err) {
       console.warn('Failed to save job to shared storage', err);
     }
+
+    // Also save to Firestore via Netlify function (persistent storage)
+    fetch('/api/switch/post-job', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        employer_id: userId,
+        title: newJob.title,
+        description: newJob.description,
+        role: newJob.role,
+        job_type: newJob.jobType,
+        urgency: newJob.urgency,
+        budget: newJob.salary,
+        salary_min: newJob.budget?.min,
+        salary_max: newJob.budget?.max,
+        location: newJob.location,
+        address: newJob.address,
+        requirements: newJob.requirements || [],
+        benefits: newJob.benefits || [],
+        working_hours: newJob.timing,
+        experience_required: newJob.experience,
+        company_name: newJob.company,
+        company_logo: newJob.logo,
+      }),
+    }).then(res => {
+      if (res.ok) {
+        console.log('✅ Job saved to Firestore');
+      }
+    }).catch(err => {
+      console.warn('Failed to save job to Firestore (will use localStorage)', err);
+    });
 
     setShowPostJob(false);
     resetJobDraft();
