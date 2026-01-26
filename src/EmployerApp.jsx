@@ -230,7 +230,8 @@ const EmployerApp = ({ onSwitchToWorker }) => {
   const [selectedJob, setSelectedJob] = useState(null);
 
   // ==================== CANDIDATES ====================
-  const [candidates, setCandidates] = useState(MOCK_CANDIDATES);
+  const [candidates, setCandidates] = useState([]); // Real workers from API
+  const [candidatesLoading, setCandidatesLoading] = useState(false);
   const [currentCandidateIndex, setCurrentCandidateIndex] = useState(0);
   const [swipeDirection, setSwipeDirection] = useState(null);
   const [showCandidateDetail, setShowCandidateDetail] = useState(false);
@@ -316,6 +317,176 @@ const EmployerApp = ({ onSwitchToWorker }) => {
       return () => clearInterval(refreshInterval);
     }
   }, [userId, authStage]);
+
+  // ==================== LOAD AVAILABLE WORKERS ====================
+
+  // Fetch available workers from the API
+  const loadAvailableWorkers = async () => {
+    setCandidatesLoading(true);
+    try {
+      // Try to fetch available workers from API
+      const res = await fetch(`${API_BASE}/api/switch/available-workers`);
+      if (res.ok) {
+        const data = await res.json();
+        const workers = data.workers || [];
+
+        // Transform API response to candidate format
+        const formattedWorkers = workers.map(worker => ({
+          id: worker.userId || worker.id,
+          name: worker.name || 'Worker',
+          photoURL: worker.photoURL || null,
+          experience: worker.experience || 'Not specified',
+          experienceYears: parseExperienceYears(worker.experience),
+          skills: worker.preferredRoles || [],
+          languages: worker.languages || ['Hindi'],
+          location: worker.location || 'Gurgaon',
+          distance: calculateDistance(worker.location),
+          available: worker.isAvailable !== false,
+          availableWhen: worker.isAvailable ? 'Immediately' : 'Not available',
+          rating: worker.rating || 0,
+          jobsCompleted: worker.jobsCompleted || 0,
+          verified: worker.verified || false,
+          expectedPay: worker.expectedPay || 'Negotiable',
+          bio: worker.bio || `${worker.experience || ''} experience. ${(worker.preferredRoles || []).join(', ')}`,
+          phone: worker.phone || '',
+        }));
+
+        if (formattedWorkers.length > 0) {
+          setCandidates(formattedWorkers);
+          console.log(`✅ Loaded ${formattedWorkers.length} workers from API`);
+          return;
+        }
+      }
+    } catch (err) {
+      console.warn('API fetch failed, trying localStorage', err);
+    }
+
+    // Fallback: Load workers from localStorage (those who have applied or signed up)
+    try {
+      // Get workers who have applied to jobs
+      const postedJobs = JSON.parse(localStorage.getItem('switch_posted_jobs') || '[]');
+      const appliedWorkers = [];
+      const seenIds = new Set();
+
+      for (const job of postedJobs) {
+        const applications = job.workerApplications || [];
+        for (const app of applications) {
+          if (!seenIds.has(app.odId)) {
+            seenIds.add(app.odId);
+            appliedWorkers.push({
+              id: app.odId,
+              name: app.workerName || 'Worker',
+              photoURL: app.workerPhoto || null,
+              experience: app.workerExperience || 'Not specified',
+              experienceYears: parseExperienceYears(app.workerExperience),
+              skills: app.workerSkills || [],
+              languages: app.workerLanguages || ['Hindi'],
+              location: app.workerLocation || 'Gurgaon',
+              distance: calculateDistance(app.workerLocation),
+              available: app.workerIsAvailable !== false,
+              availableWhen: app.workerIsAvailable ? 'Applied recently' : 'Not available',
+              rating: 0,
+              jobsCompleted: 0,
+              verified: app.workerVerified || false,
+              expectedPay: 'Negotiable',
+              bio: `Applied to: ${job.title || job.role?.name || 'your job'}`,
+              phone: app.workerPhone || '',
+              appliedToJobId: job.id,
+            });
+          }
+        }
+      }
+
+      // Also try to load profiles from localStorage cache
+      const cachedProfiles = [];
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i);
+        if (key && key.startsWith('user_') && !key.includes('employer')) {
+          try {
+            const profile = JSON.parse(localStorage.getItem(key));
+            if (profile && profile.name && profile.isAvailable !== false) {
+              const userId = key.replace('user_', '');
+              if (!seenIds.has(userId)) {
+                seenIds.add(userId);
+                cachedProfiles.push({
+                  id: userId,
+                  name: profile.name || 'Worker',
+                  photoURL: profile.photoURL || null,
+                  experience: profile.experience || 'Not specified',
+                  experienceYears: parseExperienceYears(profile.experience),
+                  skills: profile.preferredRoles || [],
+                  languages: profile.languages || ['Hindi'],
+                  location: profile.location || 'Gurgaon',
+                  distance: calculateDistance(profile.location),
+                  available: profile.isAvailable !== false,
+                  availableWhen: profile.isAvailable ? 'Immediately' : 'Not available',
+                  rating: 0,
+                  jobsCompleted: profile.totalApplied || 0,
+                  verified: profile.verified || false,
+                  expectedPay: 'Negotiable',
+                  bio: profile.bio || `${profile.experience || 'Looking for work'}. Skills: ${(profile.preferredRoles || []).join(', ')}`,
+                  phone: profile.phone || '',
+                });
+              }
+            }
+          } catch (e) {
+            // Skip invalid entries
+          }
+        }
+      }
+
+      // Combine applied workers and cached profiles
+      const allWorkers = [...appliedWorkers, ...cachedProfiles];
+
+      if (allWorkers.length > 0) {
+        setCandidates(allWorkers);
+        console.log(`✅ Loaded ${allWorkers.length} workers from localStorage`);
+      } else {
+        // Use mock data as last resort
+        setCandidates(MOCK_CANDIDATES);
+        console.log('ℹ️ Using mock candidates (no real workers found)');
+      }
+    } catch (err) {
+      console.warn('Failed to load workers, using mock data', err);
+      setCandidates(MOCK_CANDIDATES);
+    } finally {
+      setCandidatesLoading(false);
+    }
+  };
+
+  // Helper to parse experience string to years
+  const parseExperienceYears = (exp) => {
+    if (!exp) return 0;
+    if (exp.toLowerCase().includes('fresher')) return 0;
+    const match = exp.match(/(\d+)/);
+    return match ? parseInt(match[1]) : 0;
+  };
+
+  // Helper to calculate distance (placeholder - would use actual geolocation)
+  const calculateDistance = (location) => {
+    if (!location) return '< 5 km';
+    // In real app, calculate based on lat/lng
+    const distances = ['0.5 km', '1.2 km', '2.3 km', '3.5 km', '4.8 km'];
+    return distances[Math.floor(Math.random() * distances.length)];
+  };
+
+  // Load workers when auth is verified
+  useEffect(() => {
+    if (authStage === 'verified') {
+      loadAvailableWorkers();
+    }
+  }, [authStage]);
+
+  // Refresh workers periodically
+  useEffect(() => {
+    if (authStage === 'verified') {
+      const refreshInterval = setInterval(() => {
+        loadAvailableWorkers();
+      }, 10000); // Refresh every 10 seconds
+
+      return () => clearInterval(refreshInterval);
+    }
+  }, [authStage]);
 
   // ==================== AUTH FUNCTIONS ====================
   const requestOtp = async () => {
@@ -1075,17 +1246,53 @@ const EmployerApp = ({ onSwitchToWorker }) => {
               <div className="flex items-center justify-between">
                 <div>
                   <h2 className="text-lg font-bold text-gray-900 line-clamp-1">
-                    {selectedJob?.title || selectedJob?.role?.name || 'All Candidates'}
+                    {selectedJob?.title || selectedJob?.role?.name || 'Find Workers'}
                   </h2>
-                  <p className="text-sm text-gray-600">{candidates.length} workers available</p>
+                  <p className="text-sm text-gray-600">
+                    {candidatesLoading ? 'Loading...' : `${candidates.length} workers available`}
+                  </p>
                 </div>
-                <button className="p-2 bg-gray-100 rounded-lg">
-                  <Filter className="w-5 h-5 text-gray-600" />
-                </button>
+                <div className="flex gap-2">
+                  <button
+                    onClick={loadAvailableWorkers}
+                    className="p-2 bg-teal-50 rounded-lg hover:bg-teal-100 transition"
+                    title="Refresh workers"
+                  >
+                    <svg className={`w-5 h-5 text-teal-600 ${candidatesLoading ? 'animate-spin' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                    </svg>
+                  </button>
+                  <button className="p-2 bg-gray-100 rounded-lg">
+                    <Filter className="w-5 h-5 text-gray-600" />
+                  </button>
+                </div>
               </div>
 
+              {/* Loading State */}
+              {candidatesLoading && candidates.length === 0 && (
+                <div className="flex flex-col items-center justify-center py-20">
+                  <div className="w-16 h-16 border-4 border-teal-500 border-t-transparent rounded-full animate-spin mb-4"></div>
+                  <p className="text-gray-600">Loading workers...</p>
+                </div>
+              )}
+
+              {/* Empty State */}
+              {!candidatesLoading && candidates.length === 0 && (
+                <div className="text-center py-12 bg-white rounded-2xl shadow-sm">
+                  <Users className="w-16 h-16 text-gray-300 mx-auto mb-4" />
+                  <h3 className="text-lg font-semibold text-gray-900 mb-2">No workers found</h3>
+                  <p className="text-gray-600 mb-4">Post a job to attract workers, or check back later</p>
+                  <button
+                    onClick={() => { resetJobDraft(); setShowPostJob(true); }}
+                    className="bg-teal-500 text-white px-6 py-3 rounded-xl font-semibold"
+                  >
+                    Post a Job
+                  </button>
+                </div>
+              )}
+
               {/* Candidate Card */}
-              {candidate && (
+              {!candidatesLoading && candidate && (
                 <div className="relative" style={{ height: '520px' }}>
                   <div
                     ref={cardRef}

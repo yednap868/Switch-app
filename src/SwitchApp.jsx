@@ -1229,12 +1229,17 @@ const SwitchApp = ({ onSwitchToEmployer }) => {
               // Add this application to the job
               const applications = job.workerApplications || [];
               applications.push({
-                odId: userId,
+                odId: userId, // Keep for backwards compatibility with employer app
                 workerName: userProfile.name || 'Worker',
                 workerPhone: userProfile.phone || '',
                 workerPhoto: userProfile.photoURL,
                 workerExperience: userProfile.experience,
                 workerSkills: userProfile.preferredRoles,
+                workerLocation: userProfile.location || '',
+                workerLanguages: userProfile.languages || ['Hindi'],
+                workerEducation: userProfile.education || '',
+                workerVerified: userProfile.verified || false,
+                workerIsAvailable: isAvailable,
                 appliedAt: new Date().toISOString(),
                 status: 'pending',
               });
@@ -1250,6 +1255,32 @@ const SwitchApp = ({ onSwitchToEmployer }) => {
           console.log('✅ Application recorded for employer-posted job');
         } catch (err) {
           console.warn('Failed to update employer job applications', err);
+        }
+      }
+
+      // Cache worker profile in localStorage for employer app to find
+      if (userId) {
+        try {
+          const workerProfileData = {
+            userId: userId,
+            name: userProfile.name,
+            phone: userProfile.phone,
+            photoURL: userProfile.photoURL,
+            location: userProfile.location,
+            experience: userProfile.experience,
+            preferredRoles: userProfile.preferredRoles,
+            languages: userProfile.languages,
+            education: userProfile.education,
+            verified: userProfile.verified,
+            isAvailable: isAvailable,
+            totalApplied: userProfile.totalApplied + 1,
+            bio: `${userProfile.experience || 'Looking for work'}. Skills: ${(userProfile.preferredRoles || []).join(', ')}`,
+            updatedAt: new Date().toISOString(),
+          };
+          localStorage.setItem(`user_${userId}`, JSON.stringify(workerProfileData));
+          console.log('✅ Worker profile cached for employer visibility');
+        } catch (err) {
+          console.warn('Failed to cache worker profile', err);
         }
       }
 
